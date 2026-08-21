@@ -13,11 +13,20 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+let isDbConnected = false;
+let isSeeded = false;
+
 // Middleware to ensure DB connection is ready for serverless requests
 app.use(async (req, res, next) => {
   try {
-    await connectDB();
-    await seedDatabase();
+    if (!isDbConnected) {
+      await connectDB();
+      isDbConnected = true;
+    }
+    if (!isSeeded) {
+      isSeeded = true;
+      seedDatabase().catch((err) => console.warn('Background seed notice:', err));
+    }
     next();
   } catch (err) {
     console.error('Vercel API DB connection error:', err);
