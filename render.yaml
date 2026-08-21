@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: cretivrank-platform
+    env: node
+    buildCommand: npm run install:all && npm run build
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CANDIDATE_JWT_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        value: admin@cretivra.com
+      - key: ADMIN_PASSWORD
+        value: password123
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false

@@ -1,0 +1,23 @@
+{
+  "name": "cretivrank-by-cretivra-platform",
+  "version": "1.0.0",
+  "description": "CretivRank by Cretivra — Secure Online Recruitment Assessment Platform",
+  "main": "server/dist/server.js",
+  "scripts": {
+    "install:all": "npm install --prefix server && npm install --prefix client",
+    "build:client": "npm run build --prefix client",
+    "build:server": "npm run build --prefix server",
+    "build": "npm run build:client && npm run build:server",
+    "start": "node server/dist/server.js",
+    "dev": "npm run dev --prefix server"
+  },
+  "keywords": [
+    "recruitment",
+    "assessment",
+    "proctoring",
+    "cretivra",
+    "cretivrank"
+  ],
+  "author": "Cretivra Enterprise",
+  "license": "ISC"
+}

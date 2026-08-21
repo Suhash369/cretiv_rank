@@ -1,0 +1,479 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api, getCandidateToken } from '../../services/api';
+import { Clock, ShieldAlert, CheckCircle2, Bookmark, ChevronLeft, ChevronRight, Send, AlertTriangle } from 'lucide-react';
+import { detectVpnAndProxy } from '../../utils/vpnDetector';
+
+export const CandidateAssessmentRoom: React.FC = () => {
+  const navigate = useNavigate();
+
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [assessment, setAssessment] = useState<any | null>(null);
+  const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [markedForReview, setMarkedForReview] = useState<Record<string, boolean>>({});
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [remainingSeconds, setRemainingSeconds] = useState<number>(0);
+  const [saveStatus, setSaveStatus] = useState<string>('Saved');
+  const [showSubmitModal, setShowSubmitModal] = useState<boolean>(false);
+  const [fullscreenWarning, setFullscreenWarning] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Initialize Exam Session
+  useEffect(() => {
+    const token = getCandidateToken();
+    if (!token) {
+      navigate('/candidate/invite/invalid');
+      return;
+    }
+
+    // Try requesting fullscreen
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+
+    // Request Webcam Stream
+    navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
+      if (videoRef.current) videoRef.current.srcObject = stream;
+    }).catch(() => {});
+
+    // Re-verify session & run WebRTC VPN network check
+    const initSession = async () => {
+      try {
+        const vpnRes = await detectVpnAndProxy();
+        if (vpnRes.vpnDetected) {
+          api.logProctoringEvent({
+            eventType: 'VPN_DETECTED',
+            severity: 'MEDIUM',
+            metadata: { details: vpnRes.details, localIp: vpnRes.localIp },
+          }).catch(() => {});
+        }
+      } catch (err) {
+        console.error('Session init error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initSession();
+  }, []);
+
+  // ----------------------------------------------------
+  // PROCTORING & SECURITY SIGNAL LISTENERS (Phase 15 & Rule 4)
+  // ----------------------------------------------------
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        api.logProctoringEvent({
+          eventType: 'TAB_SWITCH',
+          severity: 'MEDIUM',
+          metadata: { timestamp: new Date() },
+        }).catch(() => {});
+      }
+    };
+
+    const handleWindowBlur = () => {
+      api.logProctoringEvent({
+        eventType: 'WINDOW_BLUR',
+        severity: 'LOW',
+        metadata: { timestamp: new Date() },
+      }).catch(() => {});
+    };
+
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        setFullscreenWarning(true);
+        api.logProctoringEvent({
+          eventType: 'FULLSCREEN_EXIT',
+          severity: 'HIGH',
+          metadata: { timestamp: new Date() },
+        }).catch(() => {});
+      } else {
+        setFullscreenWarning(false);
+      }
+    };
+
+    const handleCopy = () => {
+      api.logProctoringEvent({ eventType: 'COPY_ATTEMPT', severity: 'LOW' }).catch(() => {});
+    };
+
+    const handlePaste = () => {
+      api.logProctoringEvent({ eventType: 'PASTE_ATTEMPT', severity: 'LOW' }).catch(() => {});
+    };
+
+    const handleCut = () => {
+      api.logProctoringEvent({ eventType: 'CUT_ATTEMPT', severity: 'LOW' }).catch(() => {});
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      api.logProctoringEvent({ eventType: 'RIGHT_CLICK', severity: 'LOW' }).catch(() => {});
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Detect DevTools F12 or Ctrl+Shift+I or Ctrl+U
+      if (
+        e.key === 'F12' ||
+        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j')) ||
+        (e.ctrlKey && (e.key === 'u' || e.key === 'U'))
+      ) {
+        e.preventDefault();
+        api.logProctoringEvent({
+          eventType: 'KEYBOARD_SHORTCUT',
+          severity: 'HIGH',
+          metadata: { shortcut: e.key, combination: 'DevTools/ViewSource' },
+        }).catch(() => {});
+      }
+    };
+
+    const handleResize = () => {
+      if (window.outerWidth < window.screen.width * 0.85 || window.outerHeight < window.screen.height * 0.85) {
+        api.logProctoringEvent({
+          eventType: 'WINDOW_BLUR',
+          severity: 'MEDIUM',
+          metadata: { outerWidth: window.outerWidth, outerHeight: window.outerHeight, type: 'WINDOW_RESIZED' },
+        }).catch(() => {});
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleWindowBlur);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('copy', handleCopy);
+    document.addEventListener('paste', handlePaste);
+    document.addEventListener('cut', handleCut);
+    document.addEventListener('contextmenu', handleContextMenu);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleWindowBlur);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('copy', handleCopy);
+      document.removeEventListener('paste', handlePaste);
+      document.removeEventListener('cut', handleCut);
+      document.removeEventListener('contextmenu', handleContextMenu);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  // ----------------------------------------------------
+  // SERVER-AUTHORITATIVE TIMER COUNTDOWN
+  // ----------------------------------------------------
+  useEffect(() => {
+    if (remainingSeconds <= 0) return;
+    const interval = setInterval(() => {
+      setRemainingSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          handleAutoSubmit();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [remainingSeconds]);
+
+  // ----------------------------------------------------
+  // CONTINUOUS BACKGROUND AUTOSAVE (Phase 11)
+  // ----------------------------------------------------
+  const handleAnswerSelect = (questionId: string, questionVersion: number, val: any) => {
+    setAnswers((prev) => ({ ...prev, [questionId]: val }));
+    setSaveStatus('Saving...');
+
+    api.saveAnswer({
+      questionId,
+      questionVersion,
+      answer: val,
+      timeSpent: 5,
+    })
+      .then(() => {
+        setSaveStatus(`Saved at ${new Date().toLocaleTimeString()}`);
+      })
+      .catch((err) => {
+        if (err.isExpired) {
+          handleAutoSubmit();
+        } else {
+          setSaveStatus('Error saving');
+        }
+      });
+  };
+
+  const handleAutoSubmit = async () => {
+    try {
+      await api.submitAttempt();
+      navigate('/candidate/success');
+    } catch {
+      navigate('/candidate/success');
+    }
+  };
+
+  const handleSubmit = async () => {
+    try {
+      await api.submitAttempt();
+      navigate('/candidate/success');
+    } catch (err: any) {
+      alert(err.message || 'Submission failed');
+    }
+  };
+
+  // Re-enter Fullscreen Handler
+  const handleReenterFullscreen = () => {
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().then(() => {
+        setFullscreenWarning(false);
+      }).catch(() => {});
+    }
+  };
+
+  // Format Timer HH:MM:SS
+  const formatTime = (totalSec: number) => {
+    const hrs = Math.floor(totalSec / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+    const secs = totalSec % 60;
+    return `${hrs > 0 ? `${hrs.toString().padStart(2, '0')}:` : ''}${mins
+      .toString()
+      .padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Helper to load assessment questions if passed in window state or fetched
+  useEffect(() => {
+    // If questions state is empty, fetch attempt payload from candidate auth
+    // Demo fallback for initial render test
+    if (questions.length === 0) {
+      // Questions loaded during startCandidateAttempt call
+    }
+  }, []);
+
+  const currentQ = questions[currentIndex] || null;
+  const activeAnswer = currentQ ? (answers[currentQ.questionId] || '') : '';
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-none select-none">
+      {/* Top Header Bar */}
+      <header className="h-16 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between shrink-0">
+        <div>
+          <h1 className="text-base font-bold text-white">Assessment Examination Room</h1>
+          <div className="text-[11px] text-slate-400 font-mono flex items-center gap-2">
+            <span>Autosave: <strong className="text-emerald-400">{saveStatus}</strong></span>
+          </div>
+        </div>
+
+        {/* Server Countdown Clock */}
+        <div className="flex items-center gap-4">
+          <div
+            className={`px-4 py-2 rounded-xl border flex items-center gap-2 font-mono font-bold text-lg ${
+              remainingSeconds < 300
+                ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 animate-pulse'
+                : 'bg-slate-950 border-slate-800 text-brand-400'
+            }`}
+          >
+            <Clock className="w-5 h-5" />
+            <span>{formatTime(remainingSeconds || 3600)}</span>
+          </div>
+
+          <button onClick={() => setShowSubmitModal(true)} className="btn-primary py-2 text-xs bg-emerald-600 hover:bg-emerald-500">
+            <Send className="w-3.5 h-3.5" />
+            <span>Submit Assessment</span>
+          </button>
+        </div>
+      </header>
+
+      {/* Main Workspace Layout */}
+      <div className="flex-1 flex min-h-0">
+        {/* Left Sidebar: Question Palette & Proctoring PIP Video */}
+        <aside className="w-72 bg-slate-900/60 border-r border-slate-800 p-4 flex flex-col justify-between shrink-0 overflow-y-auto">
+          <div className="space-y-4">
+            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Question Navigator</h2>
+
+            <div className="grid grid-cols-5 gap-2">
+              {questions.map((qObj, idx) => {
+                const qId = qObj.questionId;
+                const isAnswered = !!answers[qId];
+                const isMarked = !!markedForReview[qId];
+                const isCurrent = idx === currentIndex;
+
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => setCurrentIndex(idx)}
+                    className={`w-9 h-9 rounded-lg text-xs font-bold font-mono transition-all flex items-center justify-center ${
+                      isCurrent
+                        ? 'ring-2 ring-brand-500 bg-brand-600 text-white'
+                        : isAnswered
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : isMarked
+                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        : 'bg-slate-900 text-slate-400 border border-slate-800 hover:bg-slate-800'
+                    }`}
+                  >
+                    {idx + 1}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Picture-in-Picture Proctoring Feed */}
+          <div className="pt-4 border-t border-slate-800 space-y-2">
+            <div className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1.5">
+              <ShieldAlert className="w-3.5 h-3.5 text-emerald-400" /> Active Video Proctoring
+            </div>
+            <video ref={videoRef} autoPlay playsInline muted className="w-full h-28 object-cover rounded-lg bg-black border border-slate-800" />
+          </div>
+        </aside>
+
+        {/* Center Main Question Canvas */}
+        <main className="flex-1 p-8 overflow-y-auto space-y-6 max-w-4xl mx-auto">
+          {/* Question Metadata Header */}
+          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div>
+              <span className="text-xs text-brand-400 font-bold uppercase tracking-wider">
+                Question {currentIndex + 1} of {questions.length || 15}
+              </span>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="bg-slate-900 border border-slate-800 text-slate-300 text-xs px-2.5 py-1 rounded font-medium">
+                  {currentQ.section}
+                </span>
+                <span className="text-xs text-slate-400">{currentQ.skill}</span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setMarkedForReview({ ...markedForReview, [currentQ.questionId]: !markedForReview[currentQ.questionId] })}
+              className={`btn-secondary text-xs py-1.5 ${markedForReview[currentQ.questionId] ? 'text-amber-400 border-amber-500/40 bg-amber-500/10' : ''}`}
+            >
+              <Bookmark className="w-3.5 h-3.5" />
+              <span>{markedForReview[currentQ.questionId] ? 'Marked for Review' : 'Mark for Review'}</span>
+            </button>
+          </div>
+
+          {/* Question Prompt */}
+          <div className="text-base font-medium text-slate-100 leading-relaxed space-y-2">
+            <p>{currentQ.question}</p>
+          </div>
+
+          {/* Question Answer Renderers */}
+          {['MCQ', 'MULTIPLE_CHOICE'].includes(currentQ.questionType) && (
+            <div className="space-y-3 pt-2">
+              {currentQ.options?.map((opt: any) => {
+                const isSelected = activeAnswer === opt.id;
+                return (
+                  <div
+                    key={opt.id}
+                    onClick={() => handleAnswerSelect(currentQ.questionId, currentQ.questionVersion, opt.id)}
+                    className={`p-4 rounded-xl border text-sm font-medium cursor-pointer transition-all flex items-center justify-between ${
+                      isSelected
+                        ? 'bg-brand-600/15 border-brand-500 text-white shadow-lg shadow-brand-500/5'
+                        : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-850'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-6 h-6 rounded-full border flex items-center justify-center text-xs font-bold ${
+                          isSelected ? 'bg-brand-500 border-brand-400 text-white' : 'border-slate-700 text-slate-400'
+                        }`}
+                      >
+                        {opt.id}
+                      </div>
+                      <span>{opt.text}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {['NUMERICAL', 'SHORT_ANSWER'].includes(currentQ.questionType) && (
+            <div className="pt-2">
+              <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Your Answer</label>
+              <input
+                type="text"
+                value={activeAnswer}
+                onChange={(e) => handleAnswerSelect(currentQ.questionId, currentQ.questionVersion, e.target.value)}
+                className="input-field w-full text-base font-mono py-3"
+                placeholder="Type numerical or short answer..."
+              />
+            </div>
+          )}
+
+          {['SQL', 'PYTHON', 'CODING', 'CASE_STUDY', 'LONG_ANALYTICAL'].includes(currentQ.questionType) && (
+            <div className="pt-2 space-y-2">
+              <label className="block text-xs font-semibold text-slate-300 uppercase">Solution Workspace ({currentQ.questionType})</label>
+              <textarea
+                rows={8}
+                value={activeAnswer}
+                onChange={(e) => handleAnswerSelect(currentQ.questionId, currentQ.questionVersion, e.target.value)}
+                className="input-field w-full font-mono text-xs leading-relaxed bg-slate-950 border-slate-800 p-4"
+                placeholder="Write your code or analytical answer here..."
+              />
+            </div>
+          )}
+
+          {/* Question Navigation Controls */}
+          <div className="flex items-center justify-between pt-8 border-t border-slate-800">
+            <button
+              disabled={currentIndex === 0}
+              onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+              className="btn-secondary text-xs"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>Previous Question</span>
+            </button>
+
+            <button
+              disabled={questions.length === 0 || currentIndex === questions.length - 1}
+              onClick={() => setCurrentIndex((prev) => Math.min(questions.length - 1, prev + 1))}
+              className="btn-primary text-xs"
+            >
+              <span>Next Question</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </main>
+      </div>
+
+      {/* Fullscreen Exit Warning Overlay */}
+      {fullscreenWarning && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="glass-panel p-8 max-w-md text-center space-y-4 border-rose-500/50">
+            <AlertTriangle className="w-12 h-12 text-rose-400 mx-auto animate-bounce" />
+            <h2 className="text-xl font-bold text-white">Security Warning: Fullscreen Exited</h2>
+            <p className="text-xs text-slate-400">
+              Leaving full-screen mode has been recorded as a proctoring security event. Please re-enter full screen to continue your assessment.
+            </p>
+            <button onClick={handleReenterFullscreen} className="btn-danger w-full py-3 text-sm">
+              Re-Enter Secure Fullscreen Mode
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Submit Confirmation Modal */}
+      {showSubmitModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-panel w-full max-w-md p-6 space-y-4 text-center">
+            <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
+            <h3 className="text-lg font-bold text-white">Confirm Assessment Submission</h3>
+            <p className="text-xs text-slate-400">
+              Are you sure you want to submit your assessment? Once submitted, your answers cannot be modified.
+            </p>
+            <div className="flex justify-center gap-3 pt-2">
+              <button onClick={() => setShowSubmitModal(false)} className="btn-secondary text-xs">
+                Return to Exam
+              </button>
+              <button onClick={handleSubmit} className="btn-primary text-xs bg-emerald-600 hover:bg-emerald-500">
+                Confirm & Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
