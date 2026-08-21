@@ -93,13 +93,13 @@ export const EmailLogsModal: React.FC<EmailLogsModalProps> = ({ isOpen, onClose 
                   className={`px-2.5 py-0.5 rounded text-xs font-bold ${
                     statusData?.mode === 'CUSTOM_SMTP'
                       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                      : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/30'
+                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
                   }`}
                 >
                   {statusData?.mode || 'ETHEREAL_TEST'}
                 </span>
                 <span className="text-xs text-slate-400">
-                  {statusData?.mode === 'CUSTOM_SMTP' ? 'Live Custom SMTP Host' : 'Ethereal Test Mailer (Zero-Config)'}
+                  {statusData?.mode === 'CUSTOM_SMTP' ? 'Live Custom SMTP (Real Inboxes)' : 'Ethereal Test Sandbox'}
                 </span>
               </div>
             </div>
@@ -111,6 +111,32 @@ export const EmailLogsModal: React.FC<EmailLogsModalProps> = ({ isOpen, onClose 
               </div>
             </div>
           </div>
+
+          {/* Real Inbox SMTP Delivery Banner / Notice */}
+          {statusData?.mode === 'ETHEREAL_TEST' && (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2 text-xs">
+              <div className="flex items-center gap-2 text-amber-400 font-bold">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>Ethereal Test Sandbox Mode Active</span>
+              </div>
+              <p className="text-slate-300 leading-relaxed">
+                In Sandbox mode, email invitations are <strong>captured in web previews</strong> ("View HTML Email") for safety and will <strong>not</strong> land in real candidate Gmail/Outlook inboxes.
+              </p>
+              <div className="pt-2 border-t border-amber-500/20 space-y-1">
+                <p className="font-semibold text-amber-300">To send emails to REAL candidate inboxes:</p>
+                <p className="text-slate-400 font-mono text-[11px]">
+                  Add these Environment Variables in your <strong>Vercel Project Settings</strong> (or <code className="text-amber-200">server/.env</code>):
+                </p>
+                <div className="p-2.5 rounded bg-slate-950/80 font-mono text-[11px] text-emerald-400 space-y-0.5 border border-slate-800">
+                  <div>SMTP_HOST = smtp.gmail.com</div>
+                  <div>SMTP_PORT = 587</div>
+                  <div>SMTP_USER = your-email@gmail.com</div>
+                  <div>SMTP_PASS = your-google-app-password</div>
+                  <div>SMTP_FROM = "CretivRank Assessments" &lt;your-email@gmail.com&gt;</div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Test Email Dispatch Form */}
           <form onSubmit={handleSendTestEmail} className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-3">
