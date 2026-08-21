@@ -4,6 +4,8 @@ import AssessmentAttempt from '../models/AssessmentAttempt';
 import Assessment from '../models/Assessment';
 import Question from '../models/Question';
 import InterviewVerification from '../models/InterviewVerification';
+import Answer from '../models/Answer';
+import AuditLog from '../models/AuditLog';
 
 export const getDashboardSummary = async (req: AuthRequest, res: Response) => {
   try {
