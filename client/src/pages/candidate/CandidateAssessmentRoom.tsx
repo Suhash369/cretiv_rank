@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api, getCandidateToken } from '../../services/api';
-import { Clock, ShieldAlert, CheckCircle2, Bookmark, ChevronLeft, ChevronRight, Send, AlertTriangle } from 'lucide-react';
+import { Clock, ShieldAlert, CheckCircle2, Bookmark, ChevronLeft, ChevronRight, Send, AlertTriangle, Users, Eye } from 'lucide-react';
 import { detectVpnAndProxy } from '../../utils/vpnDetector';
+import { detectFacesInVideo } from '../../utils/faceDetector';
 
 export const CandidateAssessmentRoom: React.FC = () => {
   const navigate = useNavigate();
@@ -17,6 +18,8 @@ export const CandidateAssessmentRoom: React.FC = () => {
   const [saveStatus, setSaveStatus] = useState<string>('Saved');
   const [showSubmitModal, setShowSubmitModal] = useState<boolean>(false);
   const [fullscreenWarning, setFullscreenWarning] = useState<boolean>(false);
+  const [faceAnomalyWarning, setFaceAnomalyWarning] = useState<string | null>(null);
+  const [faceCount, setFaceCount] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -188,6 +191,45 @@ export const CandidateAssessmentRoom: React.FC = () => {
   }, []);
 
   // ----------------------------------------------------
+  // REAL-TIME MULTIPLE FACE & ABSENCE DETECTION SCANNER
+  // ----------------------------------------------------
+  useEffect(() => {
+    const scanInterval = setInterval(async () => {
+      if (!videoRef.current || loading) return;
+      try {
+        const result = await detectFacesInVideo(videoRef.current);
+        setFaceCount(result.faceCount);
+
+        if (result.multipleFacesDetected) {
+          const warningText = `🚨 PROCTORING ANOMALY: MULTIPLE FACES DETECTED IN CAMERA FEED (${result.faceCount} Persons)`;
+          setFaceAnomalyWarning(warningText);
+
+          api.logProctoringEvent({
+            eventType: 'MULTIPLE_FACES_DETECTED',
+            severity: 'HIGH',
+            metadata: { details: result.details, faceCount: result.faceCount },
+          }).catch(() => {});
+        } else if (result.noFaceDetected) {
+          const warningText = '⚠️ PROCTORING ALERT: CANDIDATE FACE NOT DETECTED IN CAMERA FEED';
+          setFaceAnomalyWarning(warningText);
+
+          api.logProctoringEvent({
+            eventType: 'NO_FACE_DETECTED',
+            severity: 'MEDIUM',
+            metadata: { details: result.details },
+          }).catch(() => {});
+        } else {
+          setFaceAnomalyWarning(null);
+        }
+      } catch (err) {
+        console.error('Face scanning error:', err);
+      }
+    }, 3500);
+
+    return () => clearInterval(scanInterval);
+  }, [loading]);
+
+  // ----------------------------------------------------
   // SERVER-AUTHORITATIVE TIMER COUNTDOWN
   // ----------------------------------------------------
   useEffect(() => {
@@ -354,6 +396,19 @@ export const CandidateAssessmentRoom: React.FC = () => {
         </div>
       </header>
 
+      {/* Face Anomaly & Security Violation Alert Banner */}
+      {faceAnomalyWarning && (
+        <div className="bg-rose-600/90 text-white px-6 py-2 text-xs font-bold flex items-center justify-between animate-pulse border-b border-rose-500 shrink-0">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-white shrink-0" />
+            <span>{faceAnomalyWarning}</span>
+          </div>
+          <span className="text-[10px] bg-rose-950/80 px-2 py-0.5 rounded text-rose-200 uppercase font-mono">
+            Proctoring Signal Logged
+          </span>
+        </div>
+      )}
+
       {/* Main Workspace Layout */}
       <div className="flex-1 flex min-h-0">
         {/* Left Sidebar: Question Palette & Proctoring PIP Video */}
@@ -363,18 +418,17 @@ export const CandidateAssessmentRoom: React.FC = () => {
 
             <div className="grid grid-cols-5 gap-2">
               {questions.map((qObj, idx) => {
-                const qId = qObj.questionId;
-                const isAnswered = !!answers[qId];
-                const isMarked = !!markedForReview[qId];
                 const isCurrent = idx === currentIndex;
+                const isAnswered = !!answers[qObj.questionId];
+                const isMarked = markedForReview[qObj.questionId];
 
                 return (
                   <button
-                    key={idx}
+                    key={qObj.questionId}
                     onClick={() => setCurrentIndex(idx)}
-                    className={`w-9 h-9 rounded-lg text-xs font-bold font-mono transition-all flex items-center justify-center ${
+                    className={`h-9 w-full rounded-lg font-mono text-xs font-bold transition-all flex items-center justify-center ${
                       isCurrent
-                        ? 'ring-2 ring-brand-500 bg-brand-600 text-white'
+                        ? 'bg-brand-600 text-white shadow-lg shadow-brand-500/25 ring-2 ring-brand-400'
                         : isAnswered
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                         : isMarked
@@ -391,10 +445,31 @@ export const CandidateAssessmentRoom: React.FC = () => {
 
           {/* Picture-in-Picture Proctoring Feed */}
           <div className="pt-4 border-t border-slate-800 space-y-2">
-            <div className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1.5">
-              <ShieldAlert className="w-3.5 h-3.5 text-emerald-400" /> Active Video Proctoring
+            <div className="flex items-center justify-between text-[10px] uppercase font-bold text-slate-400">
+              <span className="flex items-center gap-1.5">
+                <ShieldAlert className="w-3.5 h-3.5 text-emerald-400" /> AI Face Scanner
+              </span>
+              <span
+                className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${
+                  faceCount > 1
+                    ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse'
+                    : faceCount === 0
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                }`}
+              >
+                {faceCount > 1 ? `🚨 ${faceCount} Faces Detected!` : faceCount === 0 ? '⚠️ No Face' : '✓ 1 Face Verified'}
+              </span>
             </div>
-            <video ref={videoRef} autoPlay playsInline muted className="w-full h-28 object-cover rounded-lg bg-black border border-slate-800" />
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`w-full h-28 object-cover rounded-lg bg-black border ${
+                faceCount > 1 ? 'border-rose-500 ring-2 ring-rose-500/30' : 'border-slate-800'
+              }`}
+            />
           </div>
         </aside>
 
