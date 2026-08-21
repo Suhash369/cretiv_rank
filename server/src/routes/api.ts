@@ -26,6 +26,7 @@ import {
   startAttempt,
   saveAnswer,
   submitAttempt,
+  getCurrentCandidateAttempt,
 } from '../controllers/candidateController';
 import { recordProctoringEvent, getAttemptProctoringEvents } from '../controllers/proctoringController';
 import {
