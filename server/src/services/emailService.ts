@@ -98,6 +98,13 @@ async function sendMailViaHttpApi(toEmail: string, subject: string, html: string
   const brevoKey = process.env.BREVO_API_KEY;
 
   if (resendKey) {
+    let fromAddr = 'CretivRank <onboarding@resend.dev>';
+    const configuredFrom = process.env.SMTP_FROM || '';
+    // Resend free tier requires onboarding@resend.dev unless a custom domain is verified
+    if (configuredFrom && !configuredFrom.includes('gmail.com') && !configuredFrom.includes('yahoo.com') && !configuredFrom.includes('outlook.com') && !configuredFrom.includes('your_email')) {
+      fromAddr = configuredFrom;
+    }
+
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -105,7 +112,7 @@ async function sendMailViaHttpApi(toEmail: string, subject: string, html: string
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: process.env.SMTP_FROM || 'CretivRank <onboarding@resend.dev>',
+        from: fromAddr,
         to: [toEmail],
         subject,
         html,
@@ -113,7 +120,12 @@ async function sendMailViaHttpApi(toEmail: string, subject: string, html: string
     });
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(`Resend HTTP API failed: ${errText}`);
+      let msg = `Resend HTTP API failed (${res.status}): ${errText}`;
+      try {
+        const json = JSON.parse(errText);
+        if (json.message) msg = `Resend API Error: ${json.message}`;
+      } catch (e) {}
+      throw new Error(msg);
     }
     return { success: true, mode: 'RESEND_HTTP_API' };
   }
@@ -135,7 +147,12 @@ async function sendMailViaHttpApi(toEmail: string, subject: string, html: string
     });
     if (!res.ok && res.status !== 202) {
       const errText = await res.text();
-      throw new Error(`SendGrid HTTP API failed: ${errText}`);
+      let msg = `SendGrid HTTP API failed (${res.status}): ${errText}`;
+      try {
+        const json = JSON.parse(errText);
+        if (json.errors && json.errors[0]?.message) msg = `SendGrid API Error: ${json.errors[0].message}`;
+      } catch (e) {}
+      throw new Error(msg);
     }
     return { success: true, mode: 'SENDGRID_HTTP_API' };
   }
@@ -157,7 +174,12 @@ async function sendMailViaHttpApi(toEmail: string, subject: string, html: string
     });
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(`Brevo HTTP API failed: ${errText}`);
+      let msg = `Brevo HTTP API failed (${res.status}): ${errText}`;
+      try {
+        const json = JSON.parse(errText);
+        if (json.message) msg = `Brevo API Error: ${json.message}`;
+      } catch (e) {}
+      throw new Error(msg);
     }
     return { success: true, mode: 'BREVO_HTTP_API' };
   }
@@ -221,7 +243,19 @@ export const emailService = {
         return { success: true, mode: httpResult.mode, log: logged };
       }
     } catch (httpErr: any) {
-      console.warn('HTTP API email failed, trying Nodemailer SMTP fallback:', httpErr.message);
+      console.warn('HTTP API email failed:', httpErr.message);
+      if (process.env.RESEND_API_KEY || process.env.SENDGRID_API_KEY || process.env.BREVO_API_KEY) {
+        const activeApiMode = process.env.RESEND_API_KEY ? 'RESEND_HTTP_API' : process.env.SENDGRID_API_KEY ? 'SENDGRID_HTTP_API' : 'BREVO_HTTP_API';
+        logEmail({
+          type: 'TEST',
+          recipientEmail: toEmail,
+          subject,
+          success: false,
+          error: httpErr.message,
+          mode: activeApiMode,
+        });
+        throw httpErr;
+      }
     }
 
     const { transporter, mode } = await getTransporter();
@@ -363,7 +397,20 @@ export const emailService = {
         return { success: true, mode: httpResult.mode, log: logged };
       }
     } catch (httpErr: any) {
-      console.warn('HTTP API invitation email failed, trying Nodemailer SMTP fallback:', httpErr.message);
+      console.warn('HTTP API invitation email failed:', httpErr.message);
+      if (process.env.RESEND_API_KEY || process.env.SENDGRID_API_KEY || process.env.BREVO_API_KEY) {
+        const activeApiMode = process.env.RESEND_API_KEY ? 'RESEND_HTTP_API' : process.env.SENDGRID_API_KEY ? 'SENDGRID_HTTP_API' : 'BREVO_HTTP_API';
+        logEmail({
+          type: 'INVITATION',
+          recipientEmail: params.candidateEmail,
+          recipientName: params.candidateName,
+          subject,
+          success: false,
+          error: httpErr.message,
+          mode: activeApiMode,
+        });
+        throw httpErr;
+      }
     }
 
     const { transporter, mode } = await getTransporter();
@@ -480,7 +527,20 @@ export const emailService = {
         return { success: true, mode: httpResult.mode, log: logged };
       }
     } catch (httpErr: any) {
-      console.warn('HTTP API result email failed, trying Nodemailer SMTP fallback:', httpErr.message);
+      console.warn('HTTP API result email failed:', httpErr.message);
+      if (process.env.RESEND_API_KEY || process.env.SENDGRID_API_KEY || process.env.BREVO_API_KEY) {
+        const activeApiMode = process.env.RESEND_API_KEY ? 'RESEND_HTTP_API' : process.env.SENDGRID_API_KEY ? 'SENDGRID_HTTP_API' : 'BREVO_HTTP_API';
+        logEmail({
+          type: 'RESULT',
+          recipientEmail: params.candidateEmail,
+          recipientName: params.candidateName,
+          subject,
+          success: false,
+          error: httpErr.message,
+          mode: activeApiMode,
+        });
+        throw httpErr;
+      }
     }
 
     const { transporter, mode } = await getTransporter();

@@ -238,7 +238,12 @@ export const EmailLogsModal: React.FC<EmailLogsModalProps> = ({ isOpen, onClose 
                     </div>
 
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {log.previewUrl ? (
+                      {log.error ? (
+                        <span className="text-[11px] text-rose-400 font-semibold flex items-center gap-1 bg-rose-500/10 px-2.5 py-1 rounded border border-rose-500/20 max-w-xs truncate" title={log.error}>
+                          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>Failed: {log.error}</span>
+                        </span>
+                      ) : log.previewUrl ? (
                         <a
                           href={log.previewUrl}
                           target="_blank"
