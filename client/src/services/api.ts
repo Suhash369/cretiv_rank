@@ -108,6 +108,7 @@ export const api = {
   // Candidate
   getInvitationByToken: (token: string) => request<any>(`/candidate/invitation/${token}`),
   startCandidateAttempt: (payload: any) => request<any>('/candidate/start', { method: 'POST', body: JSON.stringify(payload) }),
+  getCurrentCandidateAttempt: () => candidateRequest<any>('/candidate/current-attempt'),
   saveAnswer: (payload: any) => candidateRequest<any>('/candidate/save-answer', { method: 'POST', body: JSON.stringify(payload) }),
   submitAttempt: () => candidateRequest<any>('/candidate/submit', { method: 'POST' }),
   logProctoringEvent: (payload: any) => candidateRequest<any>('/candidate/proctoring-event', { method: 'POST', body: JSON.stringify(payload) }),

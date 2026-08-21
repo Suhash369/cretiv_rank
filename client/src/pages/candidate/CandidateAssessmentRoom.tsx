@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { api, getCandidateToken } from '../../services/api';
 import { Clock, ShieldAlert, CheckCircle2, Bookmark, ChevronLeft, ChevronRight, Send, AlertTriangle } from 'lucide-react';
 import { detectVpnAndProxy } from '../../utils/vpnDetector';
 
 export const CandidateAssessmentRoom: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [questions, setQuestions] = useState<any[]>([]);
   const [assessment, setAssessment] = useState<any | null>(null);
@@ -20,7 +21,7 @@ export const CandidateAssessmentRoom: React.FC = () => {
 
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Initialize Exam Session
+  // Initialize Exam Session & Load Questions
   useEffect(() => {
     const token = getCandidateToken();
     if (!token) {
@@ -28,7 +29,7 @@ export const CandidateAssessmentRoom: React.FC = () => {
       return;
     }
 
-    // Try requesting fullscreen
+    // Request fullscreen
     if (document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen().catch(() => {});
     }
@@ -38,9 +39,33 @@ export const CandidateAssessmentRoom: React.FC = () => {
       if (videoRef.current) videoRef.current.srcObject = stream;
     }).catch(() => {});
 
-    // Re-verify session & run WebRTC VPN network check
+    // Re-verify session & fetch active attempt payload
     const initSession = async () => {
+      setLoading(true);
       try {
+        let sessionData = location.state;
+        if (!sessionData) {
+          const stored = sessionStorage.getItem('cretivrank_assessment_session');
+          if (stored) {
+            try { sessionData = JSON.parse(stored); } catch {}
+          }
+        }
+
+        if (sessionData && sessionData.questions && sessionData.questions.length > 0) {
+          setQuestions(sessionData.questions);
+          setAssessment(sessionData.assessment || null);
+          setRemainingSeconds(sessionData.remainingSeconds || 3600);
+          if (sessionData.savedAnswers) setAnswers(sessionData.savedAnswers);
+        } else {
+          // Fetch from API directly if refreshed
+          const res = await api.getCurrentCandidateAttempt();
+          setQuestions(res.questions || []);
+          setAssessment(res.assessment || null);
+          setRemainingSeconds(res.remainingSeconds || 3600);
+          if (res.savedAnswers) setAnswers(res.savedAnswers);
+          sessionStorage.setItem('cretivrank_assessment_session', JSON.stringify(res));
+        }
+
         const vpnRes = await detectVpnAndProxy();
         if (vpnRes.vpnDetected) {
           api.logProctoringEvent({
@@ -49,7 +74,7 @@ export const CandidateAssessmentRoom: React.FC = () => {
             metadata: { details: vpnRes.details, localIp: vpnRes.localIp },
           }).catch(() => {});
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Session init error:', err);
       } finally {
         setLoading(false);
@@ -112,7 +137,6 @@ export const CandidateAssessmentRoom: React.FC = () => {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Detect DevTools F12 or Ctrl+Shift+I or Ctrl+U
       if (
         e.key === 'F12' ||
         (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j')) ||
@@ -207,8 +231,10 @@ export const CandidateAssessmentRoom: React.FC = () => {
   const handleAutoSubmit = async () => {
     try {
       await api.submitAttempt();
+      sessionStorage.removeItem('cretivrank_assessment_session');
       navigate('/candidate/success');
     } catch {
+      sessionStorage.removeItem('cretivrank_assessment_session');
       navigate('/candidate/success');
     }
   };
@@ -216,13 +242,13 @@ export const CandidateAssessmentRoom: React.FC = () => {
   const handleSubmit = async () => {
     try {
       await api.submitAttempt();
+      sessionStorage.removeItem('cretivrank_assessment_session');
       navigate('/candidate/success');
     } catch (err: any) {
       alert(err.message || 'Submission failed');
     }
   };
 
-  // Re-enter Fullscreen Handler
   const handleReenterFullscreen = () => {
     if (document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen().then(() => {
@@ -231,7 +257,6 @@ export const CandidateAssessmentRoom: React.FC = () => {
     }
   };
 
-  // Format Timer HH:MM:SS
   const formatTime = (totalSec: number) => {
     const hrs = Math.floor(totalSec / 3600);
     const mins = Math.floor((totalSec % 3600) / 60);
@@ -241,17 +266,33 @@ export const CandidateAssessmentRoom: React.FC = () => {
       .padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Helper to load assessment questions if passed in window state or fetched
-  useEffect(() => {
-    // If questions state is empty, fetch attempt payload from candidate auth
-    // Demo fallback for initial render test
-    if (questions.length === 0) {
-      // Questions loaded during startCandidateAttempt call
-    }
-  }, []);
-
   const currentQ = questions[currentIndex] || null;
   const activeAnswer = currentQ ? (answers[currentQ.questionId] || '') : '';
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-center space-y-4">
+        <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+        <div className="text-slate-200 font-semibold text-sm">Launching Secure Examination Room...</div>
+        <div className="text-xs text-slate-500">Decrypting question bank and syncing server countdown timer</div>
+      </div>
+    );
+  }
+
+  if (!currentQ || questions.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-center space-y-4">
+        <ShieldAlert className="w-12 h-12 text-amber-400 mx-auto" />
+        <h2 className="text-xl font-bold text-white">Assessment Room Session Expired</h2>
+        <p className="text-xs text-slate-400 max-w-md">
+          No active exam questions were found for your candidate token or the exam has already been submitted.
+        </p>
+        <button onClick={() => navigate('/login')} className="btn-primary text-xs">
+          Return to Platform Login
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-none select-none">

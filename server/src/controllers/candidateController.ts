@@ -279,3 +279,46 @@ export const submitAttempt = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: 'Failed to submit assessment.' });
   }
 };
+
+export const getCurrentCandidateAttempt = async (req: AuthRequest, res: Response) => {
+  try {
+    const candidateContext = req.candidateAttempt;
+    if (!candidateContext) return res.status(401).json({ error: 'Unauthorized attempt context.' });
+
+    const attempt = await AssessmentAttempt.findById(candidateContext.attemptId);
+    if (!attempt || attempt.status !== 'IN_PROGRESS') {
+      return res.status(400).json({ error: 'No active assessment attempt in progress.' });
+    }
+
+    const assessment = await Assessment.findById(attempt.assessmentId);
+    if (!assessment) return res.status(404).json({ error: 'Assessment configuration not found.' });
+
+    const nowMs = Date.now();
+    const remainingSeconds = Math.max(0, Math.floor(((attempt.expiresAt as Date).getTime() - nowMs) / 1000));
+
+    const savedAnswersList = await Answer.find({ attemptId: attempt._id });
+    const savedAnswersMap: Record<string, any> = {};
+    savedAnswersList.forEach((ans) => {
+      savedAnswersMap[ans.questionId.toString()] = ans.answer;
+    });
+
+    return res.json({
+      attemptId: attempt._id,
+      startedAt: attempt.startedAt,
+      expiresAt: attempt.expiresAt,
+      remainingSeconds,
+      assessment: {
+        id: assessment._id,
+        name: assessment.name,
+        description: assessment.description,
+        duration: assessment.duration,
+        navigationMode: assessment.navigationMode,
+        security: assessment.security,
+      },
+      questions: attempt.frozenQuestions,
+      savedAnswers: savedAnswersMap,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: 'Failed to fetch active attempt session.' });
+  }
+};

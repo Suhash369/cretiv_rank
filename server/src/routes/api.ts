@@ -82,6 +82,7 @@ router.post('/email/send-test', authenticateAdmin, authorizeRoles('SUPER_ADMIN',
 // Candidate Flow Routes (STRICTLY SEPARATED)
 router.get('/candidate/invitation/:token', getInvitationByToken);
 router.post('/candidate/start', startAttempt);
+router.get('/candidate/current-attempt', authenticateCandidate, getCurrentCandidateAttempt);
 router.post('/candidate/save-answer', authenticateCandidate, saveAnswer);
 router.post('/candidate/submit', authenticateCandidate, submitAttempt);
 router.post('/candidate/proctoring-event', authenticateCandidate, recordProctoringEvent);

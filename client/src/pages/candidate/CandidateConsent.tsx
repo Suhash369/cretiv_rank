@@ -31,7 +31,8 @@ export const CandidateConsent: React.FC = () => {
       });
 
       setCandidateToken(res.token);
-      navigate('/candidate/assessment-room');
+      sessionStorage.setItem('cretivrank_assessment_session', JSON.stringify(res));
+      navigate('/candidate/assessment-room', { state: res });
     } catch (err: any) {
       alert(err.message || 'Failed to initialize assessment room.');
     } finally {
