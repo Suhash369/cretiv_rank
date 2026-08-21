@@ -17,6 +17,7 @@ export const InvitationsPage: React.FC = () => {
     candidateEmail: '',
     jobRole: 'Data Analyst',
     assessmentId: '',
+    scheduleStartTime: '',
     expiryDays: 7,
     sendEmail: true,
   });
@@ -291,6 +292,21 @@ export const InvitationsPage: React.FC = () => {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                  Scheduled Start Date & Time (Optional Window Lock)
+                </label>
+                <input
+                  type="datetime-local"
+                  value={formData.scheduleStartTime}
+                  onChange={(e) => setFormData({ ...formData, scheduleStartTime: e.target.value })}
+                  className="input-field w-full text-xs font-mono text-emerald-400"
+                />
+                <span className="text-[10px] text-slate-500 block mt-1">
+                  Leave empty for immediate link activation. If specified (e.g., 23-08-2026 10:00 AM), candidate link will display a live countdown until the scheduled time.
+                </span>
               </div>
 
               <div className="pt-2">

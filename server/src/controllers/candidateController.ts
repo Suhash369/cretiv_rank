@@ -42,7 +42,18 @@ export const getInvitationByToken = async (req: Request, res: Response) => {
       return res.status(410).json({ error: 'This assessment invitation has expired.' });
     }
 
-    return res.json({ invitation });
+    const now = new Date();
+    if (invitation.scheduleStartTime && now < invitation.scheduleStartTime) {
+      const remainingSecondsUntilStart = Math.max(0, Math.floor((invitation.scheduleStartTime.getTime() - now.getTime()) / 1000));
+      return res.json({
+        invitation,
+        isScheduledFuture: true,
+        scheduleStartTime: invitation.scheduleStartTime,
+        remainingSecondsUntilStart,
+      });
+    }
+
+    return res.json({ invitation, isScheduledFuture: false });
   } catch (error: any) {
     return res.status(500).json({ error: 'Error validating invitation link.' });
   }
@@ -55,6 +66,10 @@ export const startAttempt = async (req: Request, res: Response) => {
 
     if (!invitation) {
       return res.status(404).json({ error: 'Invalid invitation token.' });
+    }
+
+    if (invitation.scheduleStartTime && new Date() < invitation.scheduleStartTime) {
+      return res.status(403).json({ error: 'This assessment is scheduled for a future time window and has not opened yet.' });
     }
 
     if (invitation.status === 'COMPLETED') {

@@ -7,6 +7,7 @@ export interface IInvitation extends Document {
   candidateName: string;
   candidateEmail: string;
   jobRole: string;
+  scheduleStartTime?: Date;
   expiresAt: Date;
   status: 'PENDING' | 'ACCEPTED' | 'COMPLETED' | 'EXPIRED' | 'REVOKED';
   usedAt?: Date;
@@ -26,6 +27,7 @@ const InvitationSchema = new Schema<IInvitation>(
     candidateName: { type: String, required: true, trim: true },
     candidateEmail: { type: String, required: true, lowercase: true, trim: true },
     jobRole: { type: String, required: true, trim: true },
+    scheduleStartTime: { type: Date },
     expiresAt: { type: Date, required: true },
     status: {
       type: String,

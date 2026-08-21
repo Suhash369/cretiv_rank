@@ -20,7 +20,7 @@ export const getInvitations = async (req: AuthRequest, res: Response) => {
 
 export const createInvitation = async (req: AuthRequest, res: Response) => {
   try {
-    const { candidateName, candidateEmail, jobRole, assessmentId, expiryDays, sendEmail = true } = req.body;
+    const { candidateName, candidateEmail, jobRole, assessmentId, scheduleStartTime, expiryDays, sendEmail = true } = req.body;
     const orgId = req.user?.organizationId;
 
     if (!candidateName || !candidateEmail || !assessmentId) {
@@ -33,6 +33,7 @@ export const createInvitation = async (req: AuthRequest, res: Response) => {
     const token = uuidv4();
     const days = parseInt(expiryDays, 10) || 7;
     const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+    const parsedScheduleTime = scheduleStartTime ? new Date(scheduleStartTime) : undefined;
 
     const invitation = await Invitation.create({
       token,
@@ -41,6 +42,7 @@ export const createInvitation = async (req: AuthRequest, res: Response) => {
       candidateName,
       candidateEmail: candidateEmail.toLowerCase().trim(),
       jobRole: jobRole || assessment.jobRole,
+      scheduleStartTime: parsedScheduleTime,
       expiresAt,
       status: 'PENDING',
       createdBy: req.user?.id,

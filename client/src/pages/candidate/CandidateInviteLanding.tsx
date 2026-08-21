@@ -10,6 +10,9 @@ export const CandidateInviteLanding: React.FC = () => {
   const [invitation, setInvitation] = useState<any | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [isScheduledFuture, setIsScheduledFuture] = useState<boolean>(false);
+  const [remainingSecs, setRemainingSecs] = useState<number>(0);
+  const [scheduleStartTime, setScheduleStartTime] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -18,6 +21,11 @@ export const CandidateInviteLanding: React.FC = () => {
       try {
         const res = await api.getInvitationByToken(token);
         setInvitation(res.invitation);
+        if (res.isScheduledFuture) {
+          setIsScheduledFuture(true);
+          setRemainingSecs(res.remainingSecondsUntilStart || 0);
+          setScheduleStartTime(res.scheduleStartTime);
+        }
       } catch (err: any) {
         setError(err.message || 'Invalid assessment invitation token.');
       } finally {
@@ -26,6 +34,33 @@ export const CandidateInviteLanding: React.FC = () => {
     };
     fetchInv();
   }, [token]);
+
+  // Live countdown timer for future scheduled exam link
+  useEffect(() => {
+    if (!isScheduledFuture || remainingSecs <= 0) return;
+    const interval = setInterval(() => {
+      setRemainingSecs((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setIsScheduledFuture(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isScheduledFuture, remainingSecs]);
+
+  const formatFutureCountdown = (totalSec: number) => {
+    const days = Math.floor(totalSec / (3600 * 24));
+    const hours = Math.floor((totalSec % (3600 * 24)) / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+    const secs = totalSec % 60;
+    return `${days > 0 ? `${days}d ` : ''}${hours.toString().padStart(2, '0')}h : ${mins
+      .toString()
+      .padStart(2, '0')}m : ${secs.toString().padStart(2, '0')}s`;
+  };
 
   if (loading) {
     return (
@@ -62,6 +97,22 @@ export const CandidateInviteLanding: React.FC = () => {
           <ShieldCheck className="w-6 h-6 text-emerald-400" />
         </div>
 
+        {/* Scheduled Future Window Banner */}
+        {isScheduledFuture && (
+          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center space-y-2">
+            <div className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center justify-center gap-1.5">
+              <Clock className="w-4 h-4" /> Scheduled Examination Window
+            </div>
+            <p className="text-xs text-slate-300">
+              This assessment is scheduled for <strong className="text-white">{scheduleStartTime ? new Date(scheduleStartTime).toLocaleString() : 'Future Date'}</strong>.
+            </p>
+            <div className="font-mono text-2xl font-black text-amber-400 tracking-wider pt-1">
+              {formatFutureCountdown(remainingSecs)}
+            </div>
+            <p className="text-[11px] text-slate-400">The test link will automatically unlock when the countdown reaches 0.</p>
+          </div>
+        )}
+
         <div className="space-y-3 text-xs text-slate-300">
           <div className="grid grid-cols-2 gap-4 p-4 bg-slate-900 rounded-lg border border-slate-800">
             <div>
@@ -96,11 +147,20 @@ export const CandidateInviteLanding: React.FC = () => {
         </div>
 
         <button
+          disabled={isScheduledFuture}
           onClick={() => navigate(`/candidate/system-check?token=${token}`)}
-          className="btn-primary w-full py-3 text-sm mt-4"
+          className={`w-full py-3 text-sm mt-4 ${
+            isScheduledFuture
+              ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed rounded-xl font-bold flex items-center justify-center gap-2'
+              : 'btn-primary'
+          }`}
         >
-          <span>Begin Pre-Assessment System Check</span>
-          <ArrowRight className="w-4 h-4" />
+          <span>
+            {isScheduledFuture
+              ? `Link Opens on ${scheduleStartTime ? new Date(scheduleStartTime).toLocaleDateString() : 'Scheduled Date'}`
+              : 'Begin Pre-Assessment System Check'}
+          </span>
+          {!isScheduledFuture && <ArrowRight className="w-4 h-4" />}
         </button>
       </div>
     </div>
