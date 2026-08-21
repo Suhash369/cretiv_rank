@@ -29,7 +29,10 @@ async function getTransporter(): Promise<{ transporter: nodemailer.Transporter; 
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
 
-  if (host && user && pass) {
+  const isPlaceholderUser = !user || user.includes('your_email') || user.includes('your-email') || user.includes('your_gmail');
+  const isPlaceholderPass = !pass || pass.includes('your-google-app-password') || pass.includes('your_password');
+
+  if (host && user && pass && !isPlaceholderUser && !isPlaceholderPass) {
     transporterMode = 'CUSTOM_SMTP';
     const isGmail = host.includes('gmail');
     
@@ -148,9 +151,14 @@ export const emailService = {
       ? 'SENDGRID_HTTP_API'
       : mode;
 
+    const user = process.env.SMTP_USER || '';
+    const pass = process.env.SMTP_PASS || '';
+    const isPlaceholder = user.includes('your_email') || user.includes('your-email') || pass.includes('your-google-app-password') || pass.includes('your_password');
+
     return {
       status: 'ACTIVE',
       mode: httpMode,
+      isPlaceholder,
       configuredFrom: getFromAddress(),
       recentLogs: emailLogsStore,
     };

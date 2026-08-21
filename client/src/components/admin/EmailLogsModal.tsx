@@ -113,27 +113,40 @@ export const EmailLogsModal: React.FC<EmailLogsModalProps> = ({ isOpen, onClose 
           </div>
 
           {/* Real Inbox SMTP Delivery Banner / Notice */}
-          {statusData?.mode === 'ETHEREAL_TEST' && (
-            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2 text-xs">
-              <div className="flex items-center gap-2 text-amber-400 font-bold">
+          {(statusData?.mode === 'ETHEREAL_TEST' || statusData?.isPlaceholder) && (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-3 text-xs">
+              <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>Ethereal Test Sandbox Mode Active</span>
+                <span>
+                  {statusData?.isPlaceholder
+                    ? '⚠️ Placeholder SMTP Credentials Detected in Vercel'
+                    : '🧪 Ethereal Test Sandbox Mode Active'}
+                </span>
               </div>
               <p className="text-slate-300 leading-relaxed">
-                In Sandbox mode, email invitations are <strong>captured in web previews</strong> ("View HTML Email") for safety and will <strong>not</strong> land in real candidate Gmail/Outlook inboxes.
+                {statusData?.isPlaceholder
+                  ? 'Your Vercel deployment currently contains default placeholder credentials ("your_email@gmail.com"). Emails cannot be sent to real candidate inboxes until real SMTP/API credentials are set in Vercel.'
+                  : 'In Test Sandbox mode, outgoing emails are captured safely in temporary test accounts and will NOT land in real candidate inboxes.'}
               </p>
-              <div className="pt-2 border-t border-amber-500/20 space-y-1">
-                <p className="font-semibold text-amber-300">To send emails to REAL candidate inboxes:</p>
-                <p className="text-slate-400 font-mono text-[11px]">
-                  Add these Environment Variables in your <strong>Vercel Project Settings</strong> (or <code className="text-amber-200">server/.env</code>):
-                </p>
-                <div className="p-2.5 rounded bg-slate-950/80 font-mono text-[11px] text-emerald-400 space-y-0.5 border border-slate-800">
-                  <div>SMTP_HOST = smtp.gmail.com</div>
-                  <div>SMTP_PORT = 587</div>
-                  <div>SMTP_USER = your-email@gmail.com</div>
-                  <div>SMTP_PASS = your-google-app-password</div>
-                  <div>SMTP_FROM = "CretivRank Assessments" &lt;your-email@gmail.com&gt;</div>
-                </div>
+              <div className="pt-2 border-t border-amber-500/20 space-y-2">
+                <p className="font-semibold text-amber-300">How to enable REAL email delivery to candidate inboxes:</p>
+                <ol className="list-decimal list-inside text-slate-300 space-y-1 text-[11.5px] leading-relaxed">
+                  <li>
+                    Open your <strong>Vercel Project Dashboard</strong> &rarr; <strong>Settings</strong> &rarr; <strong>Environment Variables</strong>.
+                  </li>
+                  <li>
+                    Set <code className="text-amber-200">SMTP_HOST</code> = <code className="text-emerald-400">smtp.gmail.com</code> and <code className="text-amber-200">SMTP_PORT</code> = <code className="text-emerald-400">465</code>.
+                  </li>
+                  <li>
+                    Set <code className="text-amber-200">SMTP_USER</code> = <i>your real Gmail address</i> (e.g. <code className="text-emerald-400">siva7305852@gmail.com</code>).
+                  </li>
+                  <li>
+                    Set <code className="text-amber-200">SMTP_PASS</code> = <i>your 16-character Google App Password</i> (generated from your Google Account &rarr; Security &rarr; 2-Step Verification &rarr; App passwords).
+                  </li>
+                  <li>
+                    <strong>Check Spam/Junk folder:</strong> Real emails sent from new app passwords may initially be sorted into Gmail's <i>Spam</i> or <i>Promotions</i> tab.
+                  </li>
+                </ol>
               </div>
             </div>
           )}
@@ -150,7 +163,7 @@ export const EmailLogsModal: React.FC<EmailLogsModalProps> = ({ isOpen, onClose 
                 required
                 value={testEmail}
                 onChange={(e) => setTestEmail(e.target.value)}
-                placeholder="Enter recipient email (e.g. test@example.com)..."
+                placeholder="Enter recipient email (e.g. candidate@gmail.com)..."
                 className="input-field flex-1 text-xs"
               />
               <button
@@ -235,15 +248,15 @@ export const EmailLogsModal: React.FC<EmailLogsModalProps> = ({ isOpen, onClose 
                           <ExternalLink className="w-3 h-3" />
                           <span>View HTML Email (Preview)</span>
                         </a>
-                      ) : (log.mode === 'ETHEREAL_TEST' || (!log.mode && statusData?.mode === 'ETHEREAL_TEST')) ? (
+                      ) : (log.mode === 'ETHEREAL_TEST' || (!log.mode && statusData?.mode === 'ETHEREAL_TEST') || statusData?.isPlaceholder) ? (
                         <span className="text-[11px] text-amber-400 font-semibold flex items-center gap-1 bg-amber-500/10 px-2.5 py-1 rounded border border-amber-500/20" title="Captured in Test Sandbox mode. No real email was dispatched to candidate inbox.">
                           <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
                           <span>Captured (Test Sandbox)</span>
                         </span>
                       ) : (
-                        <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+                        <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1" title="Dispatched via SMTP/HTTP API. Check Spam/Junk folder if not in main inbox.">
                           <ShieldCheck className="w-3.5 h-3.5" />
-                          <span>Delivered to Real Inbox</span>
+                          <span>Dispatched (Check Spam Inbox)</span>
                         </span>
                       )}
                     </div>
