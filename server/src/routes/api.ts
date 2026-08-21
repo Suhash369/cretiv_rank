@@ -15,11 +15,13 @@ import {
   createAssessment,
   updateAssessment,
   publishAssessment,
+  deleteAssessment,
 } from '../controllers/assessmentController';
 import {
   getInvitations,
   createInvitation,
   bulkInviteCandidates,
+  deleteInvitation,
 } from '../controllers/invitationController';
 import {
   getInvitationByToken,
