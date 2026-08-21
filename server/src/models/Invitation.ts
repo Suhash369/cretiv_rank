@@ -11,6 +11,10 @@ export interface IInvitation extends Document {
   status: 'PENDING' | 'ACCEPTED' | 'COMPLETED' | 'EXPIRED' | 'REVOKED';
   usedAt?: Date;
   createdBy: mongoose.Types.ObjectId;
+  emailSent?: boolean;
+  emailSentCount?: number;
+  lastEmailSentAt?: Date;
+  lastEmailPreviewUrl?: string;
   createdAt: Date;
 }
 
@@ -30,6 +34,10 @@ const InvitationSchema = new Schema<IInvitation>(
     },
     usedAt: { type: Date },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    emailSent: { type: Boolean, default: false },
+    emailSentCount: { type: Number, default: 0 },
+    lastEmailSentAt: { type: Date },
+    lastEmailPreviewUrl: { type: String },
   },
   { timestamps: true }
 );

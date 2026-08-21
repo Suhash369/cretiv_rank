@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { Award, ShieldAlert, Eye, CheckCircle2, ChevronRight } from 'lucide-react';
+import { Award, ShieldAlert, Eye, CheckCircle2, ChevronRight, Mail, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const CandidateResultsPage: React.FC = () => {
   const [attempts, setAttempts] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedAttempt, setSelectedAttempt] = useState<any | null>(null);
+  const [sendingResultMailId, setSendingResultMailId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -21,6 +22,21 @@ export const CandidateResultsPage: React.FC = () => {
     };
     fetchResults();
   }, []);
+
+  const handleSendResultMail = async (attemptId: string) => {
+    setSendingResultMailId(attemptId);
+    try {
+      const res = await api.sendCandidateResultEmail(attemptId);
+      alert(`Result email sent successfully to candidate!`);
+      if (res.previewUrl) {
+        window.open(res.previewUrl, '_blank');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to send result email.');
+    } finally {
+      setSendingResultMailId(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -81,6 +97,18 @@ export const CandidateResultsPage: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-5 py-4 text-right space-x-2">
+                      <button
+                        onClick={() => handleSendResultMail(att._id)}
+                        disabled={sendingResultMailId === att._id}
+                        className="text-xs btn-secondary py-1 px-2.5 inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 border-sky-500/20 hover:border-sky-500/40"
+                      >
+                        {sendingResultMailId === att._id ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Mail className="w-3.5 h-3.5" />
+                        )}
+                        <span>Email Result</span>
+                      </button>
                       <button
                         onClick={() => setSelectedAttempt(att)}
                         className="text-xs btn-secondary py-1 px-2.5"

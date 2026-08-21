@@ -11,6 +11,10 @@ try {
 let mongoMemoryServer: MongoMemoryServer | null = null;
 
 export const connectDB = async () => {
+  if (mongoose.connection.readyState >= 1) {
+    return;
+  }
+
   try {
     let mongoUri = process.env.MONGODB_URI;
 
@@ -37,7 +41,9 @@ export const connectDB = async () => {
     }
   } catch (error) {
     console.error('❌ MongoDB Connection Error:', error);
-    process.exit(1);
+    if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+      process.exit(1);
+    }
   }
 };
 

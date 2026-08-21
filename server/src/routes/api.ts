@@ -35,6 +35,12 @@ import {
 } from '../controllers/interviewController';
 import { getDashboardSummary, getCandidateResults } from '../controllers/reportController';
 import { getAuditLogs } from '../controllers/auditLogController';
+import {
+  sendInvitationEmailHandler,
+  sendResultEmailHandler,
+  getEmailStatusHandler,
+  sendTestEmailHandler,
+} from '../controllers/emailController';
 import { authenticateAdmin, authenticateCandidate, authorizeRoles } from '../middleware/auth';
 
 const router = Router();
@@ -66,6 +72,12 @@ router.put('/assessments/:id/publish', authenticateAdmin, authorizeRoles('SUPER_
 router.get('/invitations', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN'), getInvitations);
 router.post('/invitations', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN'), createInvitation);
 router.post('/invitations/bulk', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN'), bulkInviteCandidates);
+
+// Email & Notification Routes
+router.post('/invitations/:id/send-email', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN'), sendInvitationEmailHandler);
+router.post('/reports/candidates/:attemptId/send-result-email', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN', 'INTERVIEWER'), sendResultEmailHandler);
+router.get('/email/status', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN', 'INTERVIEWER'), getEmailStatusHandler);
+router.post('/email/send-test', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN'), sendTestEmailHandler);
 
 // Candidate Flow Routes (STRICTLY SEPARATED)
 router.get('/candidate/invitation/:token', getInvitationByToken);

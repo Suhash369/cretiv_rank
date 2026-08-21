@@ -4,6 +4,7 @@ import Invitation from '../models/Invitation';
 import Assessment from '../models/Assessment';
 import { v4 as uuidv4 } from 'uuid';
 import AuditLog from '../models/AuditLog';
+import { emailService } from '../services/emailService';
 
 export const getInvitations = async (req: AuthRequest, res: Response) => {
   try {
@@ -19,7 +20,7 @@ export const getInvitations = async (req: AuthRequest, res: Response) => {
 
 export const createInvitation = async (req: AuthRequest, res: Response) => {
   try {
-    const { candidateName, candidateEmail, jobRole, assessmentId, expiryDays } = req.body;
+    const { candidateName, candidateEmail, jobRole, assessmentId, expiryDays, sendEmail = true } = req.body;
     const orgId = req.user?.organizationId;
 
     if (!candidateName || !candidateEmail || !assessmentId) {
@@ -45,6 +46,34 @@ export const createInvitation = async (req: AuthRequest, res: Response) => {
       createdBy: req.user?.id,
     });
 
+    let previewUrl: string | undefined;
+    if (sendEmail) {
+      try {
+        const origin = req.get('origin') || `${req.protocol}://${req.get('host')}`;
+        const invitationUrl = `${origin}/candidate/invite/${invitation.token}`;
+        const mailResult = await emailService.sendInvitationEmail({
+          candidateName: invitation.candidateName,
+          candidateEmail: invitation.candidateEmail,
+          assessmentName: assessment.name,
+          jobRole: invitation.jobRole,
+          token: invitation.token,
+          expiresAt: invitation.expiresAt,
+          invitationUrl,
+        });
+
+        invitation.emailSent = true;
+        invitation.emailSentCount = 1;
+        invitation.lastEmailSentAt = new Date();
+        if (mailResult.previewUrl) {
+          invitation.lastEmailPreviewUrl = mailResult.previewUrl as string;
+          previewUrl = mailResult.previewUrl as string;
+        }
+        await invitation.save();
+      } catch (err) {
+        console.error('Auto-email dispatch failed during invitation creation:', err);
+      }
+    }
+
     await AuditLog.create({
       organizationId: orgId,
       actorId: req.user?.id,
@@ -53,10 +82,10 @@ export const createInvitation = async (req: AuthRequest, res: Response) => {
       action: 'CREATE_INVITATION',
       entity: 'Invitation',
       entityId: (invitation._id as any).toString(),
-      details: { candidateEmail: invitation.candidateEmail, token },
+      details: { candidateEmail: invitation.candidateEmail, token, emailSent: invitation.emailSent },
     });
 
-    return res.status(201).json({ invitation });
+    return res.status(201).json({ invitation, previewUrl });
   } catch (error: any) {
     console.error('Create invitation error:', error);
     return res.status(500).json({ error: 'Failed to generate candidate invitation.' });
@@ -65,7 +94,7 @@ export const createInvitation = async (req: AuthRequest, res: Response) => {
 
 export const bulkInviteCandidates = async (req: AuthRequest, res: Response) => {
   try {
-    const { candidates, assessmentId, expiryDays } = req.body; // Array of { name, email, jobRole }
+    const { candidates, assessmentId, expiryDays, sendEmail = true } = req.body; // Array of { name, email, jobRole }
     const orgId = req.user?.organizationId;
 
     if (!Array.isArray(candidates) || candidates.length === 0 || !assessmentId) {
@@ -79,6 +108,7 @@ export const bulkInviteCandidates = async (req: AuthRequest, res: Response) => {
     const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
     const createdInvitations = [];
+    const origin = req.get('origin') || `${req.protocol}://${req.get('host')}`;
 
     for (const c of candidates) {
       if (!c.email || !c.name) continue;
@@ -94,6 +124,32 @@ export const bulkInviteCandidates = async (req: AuthRequest, res: Response) => {
         status: 'PENDING',
         createdBy: req.user?.id,
       });
+
+      if (sendEmail) {
+        try {
+          const invitationUrl = `${origin}/candidate/invite/${inv.token}`;
+          const mailResult = await emailService.sendInvitationEmail({
+            candidateName: inv.candidateName,
+            candidateEmail: inv.candidateEmail,
+            assessmentName: assessment.name,
+            jobRole: inv.jobRole,
+            token: inv.token,
+            expiresAt: inv.expiresAt,
+            invitationUrl,
+          });
+
+          inv.emailSent = true;
+          inv.emailSentCount = 1;
+          inv.lastEmailSentAt = new Date();
+          if (mailResult.previewUrl) {
+            inv.lastEmailPreviewUrl = mailResult.previewUrl as string;
+          }
+          await inv.save();
+        } catch (err) {
+          console.error(`Auto-email failed for bulk candidate ${c.email}:`, err);
+        }
+      }
+
       createdInvitations.push(inv);
     }
 

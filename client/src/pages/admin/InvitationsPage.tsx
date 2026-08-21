@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { UserCheck, Plus, Copy, Check, ExternalLink, Mail, Clock } from 'lucide-react';
+import { UserCheck, Plus, Copy, Check, ExternalLink, Mail, Clock, Send, RefreshCw, Eye } from 'lucide-react';
+import { EmailLogsModal } from '../../components/admin/EmailLogsModal';
 
 export const InvitationsPage: React.FC = () => {
   const [invitations, setInvitations] = useState<any[]>([]);
   const [assessments, setAssessments] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showModal, setShowModal] = useState<boolean>(false);
+  const [showLogsModal, setShowLogsModal] = useState<boolean>(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     candidateName: '',
@@ -15,6 +18,7 @@ export const InvitationsPage: React.FC = () => {
     jobRole: 'Data Analyst',
     assessmentId: '',
     expiryDays: 7,
+    sendEmail: true,
   });
 
   const fetchInvitations = async () => {
@@ -41,11 +45,29 @@ export const InvitationsPage: React.FC = () => {
   const handleCreateInvitation = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.createInvitation(formData);
+      const res = await api.createInvitation(formData);
       setShowModal(false);
       fetchInvitations();
+      if (res.previewUrl) {
+        window.open(res.previewUrl, '_blank');
+      }
     } catch (err: any) {
       alert(err.message || 'Failed to generate candidate invitation');
+    }
+  };
+
+  const handleSendEmail = async (invitationId: string) => {
+    setSendingEmailId(invitationId);
+    try {
+      const res = await api.sendInvitationEmail(invitationId);
+      fetchInvitations();
+      if (res.previewUrl) {
+        window.open(res.previewUrl, '_blank');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to send invitation email.');
+    } finally {
+      setSendingEmailId(null);
     }
   };
 
@@ -63,13 +85,22 @@ export const InvitationsPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Candidate Assessment Invitations</h1>
           <p className="text-slate-400 text-sm mt-1">
-            Generate cryptographically secure single-use candidate assessment access links.
+            Generate single-use access tokens and send official candidate invitation emails.
           </p>
         </div>
-        <button onClick={() => setShowModal(true)} className="btn-primary">
-          <Plus className="w-4 h-4" />
-          <span>Invite Candidate</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowLogsModal(true)}
+            className="btn-secondary text-xs inline-flex items-center gap-1.5"
+          >
+            <Mail className="w-4 h-4 text-indigo-400" />
+            <span>Email Activity Logs</span>
+          </button>
+          <button onClick={() => setShowModal(true)} className="btn-primary">
+            <Plus className="w-4 h-4" />
+            <span>Invite Candidate</span>
+          </button>
+        </div>
       </div>
 
       {/* Invitations Table */}
@@ -88,8 +119,9 @@ export const InvitationsPage: React.FC = () => {
                   <th className="px-5 py-3.5">Candidate</th>
                   <th className="px-5 py-3.5">Assessment</th>
                   <th className="px-5 py-3.5">Status</th>
+                  <th className="px-5 py-3.5">Email Delivery</th>
                   <th className="px-5 py-3.5">Expires</th>
-                  <th className="px-5 py-3.5 text-right">Candidate Link</th>
+                  <th className="px-5 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -117,23 +149,67 @@ export const InvitationsPage: React.FC = () => {
                         {inv.status}
                       </span>
                     </td>
+                    <td className="px-5 py-4">
+                      <div className="space-y-1">
+                        <span
+                          className={`text-[11px] px-2 py-0.5 rounded font-semibold inline-flex items-center gap-1 ${
+                            inv.emailSent
+                              ? 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/20'
+                              : 'bg-slate-800 text-slate-400 border border-slate-700'
+                          }`}
+                        >
+                          <Mail className="w-3 h-3" />
+                          <span>
+                            {inv.emailSent
+                              ? `Sent ${inv.emailSentCount && inv.emailSentCount > 1 ? `(${inv.emailSentCount}x)` : ''}`
+                              : 'Not Sent'}
+                          </span>
+                        </span>
+                        {inv.lastEmailPreviewUrl && (
+                          <div>
+                            <a
+                              href={inv.lastEmailPreviewUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] text-indigo-400 hover:underline inline-flex items-center gap-1"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>View HTML Mail</span>
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-5 py-4 text-xs text-slate-400">
                       {new Date(inv.expiresAt).toLocaleDateString()}
                     </td>
-                    <td className="px-5 py-4 text-right">
+                    <td className="px-5 py-4 text-right space-x-2">
+                      <button
+                        onClick={() => handleSendEmail(inv._id)}
+                        disabled={sendingEmailId === inv._id}
+                        className="btn-secondary text-xs py-1 px-2.5 inline-flex items-center gap-1 text-indigo-300 hover:text-indigo-200 border-indigo-500/20 hover:border-indigo-500/40"
+                      >
+                        {sendingEmailId === inv._id ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Send className="w-3.5 h-3.5" />
+                        )}
+                        <span>{inv.emailSent ? 'Resend Mail' : 'Send Mail'}</span>
+                      </button>
+
                       <button
                         onClick={() => handleCopyLink(inv.token)}
-                        className="btn-secondary text-xs inline-flex items-center gap-1.5 py-1 px-3"
+                        className="btn-secondary text-xs py-1 px-2.5 inline-flex items-center gap-1.5"
                       >
                         {copiedToken === inv.token ? (
                           <>
                             <Check className="w-3.5 h-3.5 text-emerald-400" />
-                            <span className="text-emerald-400">Copied Link!</span>
+                            <span className="text-emerald-400">Copied!</span>
                           </>
                         ) : (
                           <>
                             <Copy className="w-3.5 h-3.5" />
-                            <span>Copy Candidate URL</span>
+                            <span>Copy URL</span>
                           </>
                         )}
                       </button>
@@ -197,18 +273,33 @@ export const InvitationsPage: React.FC = () => {
                 </select>
               </div>
 
+              <div className="pt-2">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={formData.sendEmail}
+                    onChange={(e) => setFormData({ ...formData, sendEmail: e.target.checked })}
+                    className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span>Automatically dispatch email invitation to candidate</span>
+                </label>
+              </div>
+
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary">
-                  Generate Secure Access Token
+                  Generate Invitation & Send
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Email Delivery & Logs Drawer Modal */}
+      <EmailLogsModal isOpen={showLogsModal} onClose={() => setShowLogsModal(false)} />
     </div>
   );
 };

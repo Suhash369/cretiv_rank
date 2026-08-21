@@ -98,6 +98,12 @@ export const api = {
   getInvitations: () => request<any>('/invitations'),
   createInvitation: (data: any) => request<any>('/invitations', { method: 'POST', body: JSON.stringify(data) }),
   bulkInvite: (data: any) => request<any>('/invitations/bulk', { method: 'POST', body: JSON.stringify(data) }),
+  sendInvitationEmail: (id: string) => request<any>(`/invitations/${id}/send-email`, { method: 'POST' }),
+
+  // Email System
+  sendCandidateResultEmail: (attemptId: string) => request<any>(`/reports/candidates/${attemptId}/send-result-email`, { method: 'POST' }),
+  getEmailStatus: () => request<any>('/email/status'),
+  sendTestEmail: (toEmail: string) => request<any>('/email/send-test', { method: 'POST', body: JSON.stringify({ toEmail }) }),
 
   // Candidate
   getInvitationByToken: (token: string) => request<any>(`/candidate/invitation/${token}`),
