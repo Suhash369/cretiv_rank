@@ -11,6 +11,7 @@ export interface EmailLogEntry {
   success: boolean;
   previewUrl?: string | false;
   error?: string;
+  mode?: string;
 }
 
 // In-memory store for recent email logs
@@ -182,6 +183,7 @@ export const emailService = {
           recipientEmail: toEmail,
           subject,
           success: true,
+          mode: httpResult.mode,
         });
         return { success: true, mode: httpResult.mode, log: logged };
       }
@@ -206,6 +208,7 @@ export const emailService = {
         subject,
         success: true,
         previewUrl,
+        mode,
       });
 
       return { success: true, messageId: info.messageId, previewUrl, log: logged };
@@ -221,6 +224,7 @@ export const emailService = {
         subject,
         success: false,
         error: errMsg,
+        mode,
       });
       throw new Error(errMsg);
     }
@@ -321,6 +325,7 @@ export const emailService = {
           recipientName: params.candidateName,
           subject,
           success: true,
+          mode: httpResult.mode,
         });
         return { success: true, mode: httpResult.mode, log: logged };
       }
@@ -346,6 +351,7 @@ export const emailService = {
         subject,
         success: true,
         previewUrl,
+        mode,
       });
 
       return { success: true, messageId: info.messageId, previewUrl, log: logged };
@@ -362,6 +368,7 @@ export const emailService = {
         subject,
         success: false,
         error: errMsg,
+        mode,
       });
       throw new Error(errMsg);
     }
@@ -377,8 +384,6 @@ export const emailService = {
     accuracy: number;
     decision?: string;
   }) {
-    const { transporter, mode } = await getTransporter();
-    const from = getFromAddress();
     const subject = `Assessment Evaluation Summary: ${params.assessmentName}`;
 
     const html = `
@@ -427,6 +432,27 @@ export const emailService = {
       </html>
     `;
 
+    // Try HTTP API first (Resend / SendGrid API) to bypass cloud port 587 timeouts
+    try {
+      const httpResult = await sendMailViaHttpApi(params.candidateEmail, subject, html);
+      if (httpResult) {
+        const logged = logEmail({
+          type: 'RESULT',
+          recipientEmail: params.candidateEmail,
+          recipientName: params.candidateName,
+          subject,
+          success: true,
+          mode: httpResult.mode,
+        });
+        return { success: true, mode: httpResult.mode, log: logged };
+      }
+    } catch (httpErr: any) {
+      console.warn('HTTP API result email failed, trying Nodemailer SMTP fallback:', httpErr.message);
+    }
+
+    const { transporter, mode } = await getTransporter();
+    const from = getFromAddress();
+
     try {
       const info = await transporter.sendMail({
         from,
@@ -443,6 +469,7 @@ export const emailService = {
         subject,
         success: true,
         previewUrl,
+        mode,
       });
 
       return { success: true, messageId: info.messageId, previewUrl, log: logged };
@@ -454,6 +481,7 @@ export const emailService = {
         subject,
         success: false,
         error: err.message,
+        mode,
       });
       throw err;
     }

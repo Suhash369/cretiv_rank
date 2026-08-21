@@ -233,12 +233,17 @@ export const EmailLogsModal: React.FC<EmailLogsModalProps> = ({ isOpen, onClose 
                           className="btn-secondary text-[11px] py-1 px-2.5 inline-flex items-center gap-1 text-indigo-400 border-indigo-500/30 hover:border-indigo-500"
                         >
                           <ExternalLink className="w-3 h-3" />
-                          <span>View HTML Email</span>
+                          <span>View HTML Email (Preview)</span>
                         </a>
+                      ) : (log.mode === 'ETHEREAL_TEST' || (!log.mode && statusData?.mode === 'ETHEREAL_TEST')) ? (
+                        <span className="text-[11px] text-amber-400 font-semibold flex items-center gap-1 bg-amber-500/10 px-2.5 py-1 rounded border border-amber-500/20" title="Captured in Test Sandbox mode. No real email was dispatched to candidate inbox.">
+                          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>Captured (Test Sandbox)</span>
+                        </span>
                       ) : (
                         <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
                           <ShieldCheck className="w-3.5 h-3.5" />
-                          <span>Delivered</span>
+                          <span>Delivered to Real Inbox</span>
                         </span>
                       )}
                     </div>

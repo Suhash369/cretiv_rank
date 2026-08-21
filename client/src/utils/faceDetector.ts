@@ -39,8 +39,8 @@ export const detectFacesInVideo = async (
           faceCount > 1
             ? `ANOMALY: ${faceCount} distinct faces detected in candidate camera frame!`
             : faceCount === 0
-            ? 'WARNING: Candidate face not detected in front of camera.'
-            : 'Single candidate face verified.',
+              ? 'WARNING: Candidate face not detected in front of camera.'
+              : 'Single candidate face verified.',
       };
     } catch (err) {
       // Fall through to Canvas Heuristic Fallback
@@ -127,8 +127,8 @@ export const detectFacesInVideo = async (
       details: multipleFacesDetected
         ? `ANOMALY: Multiple distinct facial regions (${clusterCount}) detected in candidate camera frame!`
         : noFaceDetected
-        ? 'WARNING: Candidate face not detected in front of camera.'
-        : 'Single candidate face verified.',
+          ? 'WARNING: Candidate face not detected in front of camera.'
+          : 'Single candidate face verified.',
     };
   } catch (err) {
     return {
