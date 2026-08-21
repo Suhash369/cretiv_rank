@@ -68,11 +68,13 @@ router.get('/assessments/:id', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 
 router.post('/assessments', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN'), createAssessment);
 router.put('/assessments/:id', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN'), updateAssessment);
 router.put('/assessments/:id/publish', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN'), publishAssessment);
+router.delete('/assessments/:id', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN'), deleteAssessment);
 
 // Invitation Routes
 router.get('/invitations', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN'), getInvitations);
 router.post('/invitations', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN'), createInvitation);
 router.post('/invitations/bulk', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN'), bulkInviteCandidates);
+router.delete('/invitations/:id', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN'), deleteInvitation);
 
 // Email & Notification Routes
 router.post('/invitations/:id/send-email', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN'), sendInvitationEmailHandler);

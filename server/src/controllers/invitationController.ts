@@ -161,3 +161,26 @@ export const bulkInviteCandidates = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: 'Failed to process bulk candidate invitations.' });
   }
 };
+
+export const deleteInvitation = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const inv = await Invitation.findByIdAndDelete(id);
+    if (!inv) return res.status(404).json({ error: 'Candidate invitation not found.' });
+
+    await AuditLog.create({
+      organizationId: inv.organizationId,
+      actorId: req.user?.id,
+      actorEmail: req.user?.email,
+      actorRole: req.user?.role,
+      action: 'DELETE_INVITATION',
+      entity: 'Invitation',
+      entityId: id,
+      details: { candidateEmail: inv.candidateEmail },
+    });
+
+    return res.json({ message: 'Candidate invitation removed successfully.' });
+  } catch (error: any) {
+    return res.status(500).json({ error: 'Failed to delete candidate invitation.' });
+  }
+};

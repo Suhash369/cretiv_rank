@@ -156,3 +156,27 @@ export const publishAssessment = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: 'Failed to publish assessment.' });
   }
 };
+
+export const deleteAssessment = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const assessment = await Assessment.findByIdAndDelete(id);
+    if (!assessment) return res.status(404).json({ error: 'Assessment not found.' });
+
+    // Delete associated invitations & attempts
+    await AuditLog.create({
+      organizationId: assessment.organizationId,
+      actorId: req.user?.id,
+      actorEmail: req.user?.email,
+      actorRole: req.user?.role,
+      action: 'DELETE_ASSESSMENT',
+      entity: 'Assessment',
+      entityId: id,
+      details: { name: assessment.name },
+    });
+
+    return res.json({ message: 'Assessment deleted successfully.' });
+  } catch (error: any) {
+    return res.status(500).json({ error: 'Failed to delete assessment.' });
+  }
+};

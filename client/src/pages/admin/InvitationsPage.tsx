@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { UserCheck, Plus, Copy, Check, ExternalLink, Mail, Clock, Send, RefreshCw, Eye } from 'lucide-react';
+import { UserCheck, Plus, Copy, Check, ExternalLink, Mail, Clock, Send, RefreshCw, Eye, Trash2 } from 'lucide-react';
 import { EmailLogsModal } from '../../components/admin/EmailLogsModal';
 
 export const InvitationsPage: React.FC = () => {
@@ -68,6 +68,18 @@ export const InvitationsPage: React.FC = () => {
       alert(err.message || 'Failed to send invitation email.');
     } finally {
       setSendingEmailId(null);
+    }
+  };
+
+  const handleDeleteInvitation = async (id: string, candidateName: string) => {
+    if (!window.confirm(`Are you sure you want to delete invitation for candidate "${candidateName}"?`)) {
+      return;
+    }
+    try {
+      await api.deleteInvitation(id);
+      fetchInvitations();
+    } catch (err: any) {
+      alert(err.message || 'Failed to remove candidate invitation.');
     }
   };
 
@@ -212,6 +224,14 @@ export const InvitationsPage: React.FC = () => {
                             <span>Copy URL</span>
                           </>
                         )}
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteInvitation(inv._id, inv.candidateName)}
+                        className="btn-secondary text-xs py-1 px-2.5 text-rose-400 border-rose-500/20 hover:border-rose-500/40 hover:bg-rose-500/10 inline-flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Remove</span>
                       </button>
                     </td>
                   </tr>

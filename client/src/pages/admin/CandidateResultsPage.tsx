@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { Award, ShieldAlert, Eye, CheckCircle2, ChevronRight, Mail, RefreshCw } from 'lucide-react';
+import { Award, ShieldAlert, Eye, CheckCircle2, ChevronRight, Mail, RefreshCw, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const CandidateResultsPage: React.FC = () => {
@@ -11,17 +11,18 @@ export const CandidateResultsPage: React.FC = () => {
   const [viewingAnswersData, setViewingAnswersData] = useState<any | null>(null);
   const [loadingAnswers, setLoadingAnswers] = useState<boolean>(false);
 
+  const fetchResults = async () => {
+    try {
+      const res = await api.getCandidateResults();
+      setAttempts(res.attempts);
+    } catch (err) {
+      console.error('Failed to load candidate results:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchResults = async () => {
-      try {
-        const res = await api.getCandidateResults();
-        setAttempts(res.attempts);
-      } catch (err) {
-        console.error('Failed to load candidate results:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchResults();
   }, []);
 
@@ -49,6 +50,19 @@ export const CandidateResultsPage: React.FC = () => {
       alert(err.message || 'Failed to fetch candidate answers.');
     } finally {
       setLoadingAnswers(false);
+    }
+  };
+
+  const handleDeleteAttempt = async (attemptId: string, candidateName: string) => {
+    if (!window.confirm(`Are you sure you want to delete candidate attempt record for "${candidateName}"?`)) {
+      return;
+    }
+    try {
+      await api.deleteCandidateAttempt(attemptId);
+      alert(`Candidate attempt record removed successfully.`);
+      fetchResults();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete candidate attempt record.');
     }
   };
 
@@ -161,6 +175,13 @@ export const CandidateResultsPage: React.FC = () => {
                         <ShieldAlert className="w-3.5 h-3.5" />
                         <span>Timeline</span>
                       </Link>
+                      <button
+                        onClick={() => handleDeleteAttempt(att._id, att.candidateName)}
+                        className="text-xs btn-secondary py-1 px-2.5 inline-flex items-center gap-1 text-rose-400 border-rose-500/20 hover:border-rose-500/40 hover:bg-rose-500/10"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
+                      </button>
                     </td>
                   </tr>
                 ))}

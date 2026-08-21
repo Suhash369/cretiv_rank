@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { FileCheck2, Plus, CheckCircle2, Shield, Clock, AlertCircle, X, HelpCircle, Layers } from 'lucide-react';
+import { FileCheck2, Plus, CheckCircle2, Shield, Clock, AlertCircle, X, HelpCircle, Layers, Trash2 } from 'lucide-react';
 import { SECTIONS, NAVIGATION_MODES } from '../../constants';
 
 export const AssessmentsPage: React.FC = () => {
@@ -110,6 +110,19 @@ export const AssessmentsPage: React.FC = () => {
     }
   };
 
+  const handleDeleteAssessment = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete assessment "${name}"? All related candidate invitations will also be removed.`)) {
+      return;
+    }
+    try {
+      await api.deleteAssessment(id);
+      alert(`Assessment "${name}" deleted successfully.`);
+      fetchData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete assessment.');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -199,6 +212,13 @@ export const AssessmentsPage: React.FC = () => {
                         <span>Validate & Publish</span>
                       </button>
                     )}
+                    <button
+                      onClick={() => handleDeleteAssessment(a._id, a.name)}
+                      className="btn-secondary text-xs text-rose-400 border-rose-500/20 hover:border-rose-500/40 hover:bg-rose-500/10"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete</span>
+                    </button>
                   </div>
                 </div>
               );

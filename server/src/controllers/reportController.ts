@@ -205,3 +205,29 @@ export const updateManualAnswerGrade = async (req: AuthRequest, res: Response) =
     return res.status(500).json({ error: 'Failed to update manual answer grade.' });
   }
 };
+
+export const deleteCandidateAttempt = async (req: AuthRequest, res: Response) => {
+  try {
+    const { attemptId } = req.params;
+    const attempt = await AssessmentAttempt.findByIdAndDelete(attemptId);
+    if (!attempt) return res.status(404).json({ error: 'Candidate attempt not found.' });
+
+    // Cleanup candidate's submitted answers
+    await Answer.deleteMany({ attemptId });
+
+    await AuditLog.create({
+      organizationId: attempt.organizationId,
+      actorId: req.user?.id,
+      actorEmail: req.user?.email,
+      actorRole: req.user?.role,
+      action: 'DELETE_CANDIDATE_ATTEMPT',
+      entity: 'AssessmentAttempt',
+      entityId: attemptId,
+      details: { candidateName: attempt.candidateName, candidateEmail: attempt.candidateEmail },
+    });
+
+    return res.json({ message: 'Candidate attempt record and submitted answers deleted successfully.' });
+  } catch (error: any) {
+    return res.status(500).json({ error: 'Failed to delete candidate attempt.' });
+  }
+};

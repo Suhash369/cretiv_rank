@@ -93,16 +93,19 @@ export const api = {
   createAssessment: (data: any) => request<any>('/assessments', { method: 'POST', body: JSON.stringify(data) }),
   updateAssessment: (id: string, data: any) => request<any>(`/assessments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   publishAssessment: (id: string) => request<any>(`/assessments/${id}/publish`, { method: 'PUT' }),
+  deleteAssessment: (id: string) => request<any>(`/assessments/${id}`, { method: 'DELETE' }),
 
   // Invitations
   getInvitations: () => request<any>('/invitations'),
   createInvitation: (data: any) => request<any>('/invitations', { method: 'POST', body: JSON.stringify(data) }),
   bulkInvite: (data: any) => request<any>('/invitations/bulk', { method: 'POST', body: JSON.stringify(data) }),
   sendInvitationEmail: (id: string) => request<any>(`/invitations/${id}/send-email`, { method: 'POST' }),
+  deleteInvitation: (id: string) => request<any>(`/invitations/${id}`, { method: 'DELETE' }),
 
   // Email System & Reports
   sendCandidateResultEmail: (attemptId: string) => request<any>(`/reports/candidates/${attemptId}/send-result-email`, { method: 'POST' }),
   gradeCandidateAnswer: (attemptId: string, payload: any) => request<any>(`/reports/candidates/${attemptId}/grade-answer`, { method: 'POST', body: JSON.stringify(payload) }),
+  deleteCandidateAttempt: (attemptId: string) => request<any>(`/reports/candidates/${attemptId}`, { method: 'DELETE' }),
   getEmailStatus: () => request<any>('/email/status'),
   sendTestEmail: (toEmail: string) => request<any>('/email/send-test', { method: 'POST', body: JSON.stringify({ toEmail }) }),
 
