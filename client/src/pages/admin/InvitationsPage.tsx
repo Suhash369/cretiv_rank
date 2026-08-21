@@ -46,7 +46,13 @@ export const InvitationsPage: React.FC = () => {
   const handleCreateInvitation = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await api.createInvitation(formData);
+      const payload = {
+        ...formData,
+        scheduleStartTime: formData.scheduleStartTime
+          ? new Date(formData.scheduleStartTime).toISOString()
+          : undefined,
+      };
+      const res = await api.createInvitation(payload);
       setShowModal(false);
       fetchInvitations();
       if (res.previewUrl) {
