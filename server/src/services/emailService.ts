@@ -30,13 +30,21 @@ async function getTransporter(): Promise<{ transporter: nodemailer.Transporter; 
 
   if (host && user && pass) {
     transporterMode = 'CUSTOM_SMTP';
+    const isGmail = host.includes('gmail');
+    
     cachedTransporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
+      ...(isGmail
+        ? { service: 'gmail' }
+        : { host, port, secure: port === 465 }),
       auth: { user, pass },
+      connectionTimeout: 10000, // 10s connection timeout
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
+      tls: {
+        rejectUnauthorized: false,
+      },
     });
-    console.log(`📧 Email Service: Configured custom SMTP transporter (${host}:${port})`);
+    console.log(`📧 Email Service: Configured custom SMTP transporter (${isGmail ? 'Gmail Service' : `${host}:${port}`})`);
   } else {
     // Fallback to Ethereal Test Account
     transporterMode = 'ETHEREAL_TEST';
@@ -130,6 +138,7 @@ export const emailService = {
 
       return { success: true, messageId: info.messageId, previewUrl, log: logged };
     } catch (err: any) {
+      cachedTransporter = null;
       const logged = logEmail({
         type: 'TEST',
         recipientEmail: toEmail,
