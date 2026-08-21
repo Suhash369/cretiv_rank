@@ -24,10 +24,6 @@ export const CandidateAssessmentRoom: React.FC = () => {
   // Initialize Exam Session & Load Questions
   useEffect(() => {
     const token = getCandidateToken();
-    if (!token) {
-      navigate('/candidate/invite/invalid');
-      return;
-    }
 
     // Request fullscreen
     if (document.documentElement.requestFullscreen) {
@@ -38,6 +34,11 @@ export const CandidateAssessmentRoom: React.FC = () => {
     navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
       if (videoRef.current) videoRef.current.srcObject = stream;
     }).catch(() => {});
+
+    if (!token) {
+      setLoading(false);
+      return;
+    }
 
     // Re-verify session & fetch active attempt payload
     const initSession = async () => {
@@ -66,14 +67,16 @@ export const CandidateAssessmentRoom: React.FC = () => {
           sessionStorage.setItem('cretivrank_assessment_session', JSON.stringify(res));
         }
 
-        const vpnRes = await detectVpnAndProxy();
-        if (vpnRes.vpnDetected) {
-          api.logProctoringEvent({
-            eventType: 'VPN_DETECTED',
-            severity: 'MEDIUM',
-            metadata: { details: vpnRes.details, localIp: vpnRes.localIp },
-          }).catch(() => {});
-        }
+        // Non-blocking background VPN check
+        detectVpnAndProxy().then((vpnRes) => {
+          if (vpnRes.vpnDetected) {
+            api.logProctoringEvent({
+              eventType: 'VPN_DETECTED',
+              severity: 'MEDIUM',
+              metadata: { details: vpnRes.details, localIp: vpnRes.localIp },
+            }).catch(() => {});
+          }
+        }).catch(() => {});
       } catch (err: any) {
         console.error('Session init error:', err);
       } finally {
@@ -281,15 +284,41 @@ export const CandidateAssessmentRoom: React.FC = () => {
 
   if (!currentQ || questions.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-center space-y-4">
-        <ShieldAlert className="w-12 h-12 text-amber-400 mx-auto" />
-        <h2 className="text-xl font-bold text-white">Assessment Room Session Expired</h2>
-        <p className="text-xs text-slate-400 max-w-md">
-          No active exam questions were found for your candidate token or the exam has already been submitted.
-        </p>
-        <button onClick={() => navigate('/login')} className="btn-primary text-xs">
-          Return to Platform Login
-        </button>
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-center space-y-6">
+        <div className="glass-panel p-8 max-w-lg space-y-5 border-amber-500/30">
+          <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/20">
+            <ShieldAlert className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-xl font-bold text-white">Direct Assessment Room Access Not Permitted</h2>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Assessment examination rooms are cryptographically secured and must be initiated through your candidate single-use access link.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 text-left text-xs space-y-2">
+            <div className="font-semibold text-slate-300">How to access your assessment:</div>
+            <ul className="space-y-1.5 list-disc list-inside text-slate-400 text-[11px]">
+              <li>Use the exact invitation link sent to your email.</li>
+              <li>Or click below to test the platform using the sample candidate flow.</li>
+            </ul>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <button
+              onClick={() => navigate('/candidate/invite/demo-candidate-token-2026')}
+              className="btn-primary w-full sm:w-auto text-xs py-2.5 px-4"
+            >
+              Launch Demo Candidate Flow
+            </button>
+            <button
+              onClick={() => navigate('/admin/invitations')}
+              className="btn-secondary w-full sm:w-auto text-xs py-2.5 px-4"
+            >
+              Recruiter Admin Dashboard
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
