@@ -8,6 +8,8 @@ export const CandidateResultsPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedAttempt, setSelectedAttempt] = useState<any | null>(null);
   const [sendingResultMailId, setSendingResultMailId] = useState<string | null>(null);
+  const [viewingAnswersData, setViewingAnswersData] = useState<any | null>(null);
+  const [loadingAnswers, setLoadingAnswers] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -35,6 +37,18 @@ export const CandidateResultsPage: React.FC = () => {
       alert(err.message || 'Failed to send result email.');
     } finally {
       setSendingResultMailId(null);
+    }
+  };
+
+  const handleViewAnswers = async (attemptId: string) => {
+    setLoadingAnswers(true);
+    try {
+      const res = await api.getCandidateInterviewDetails(attemptId);
+      setViewingAnswersData(res);
+    } catch (err: any) {
+      alert(err.message || 'Failed to fetch candidate answers.');
+    } finally {
+      setLoadingAnswers(false);
     }
   };
 
@@ -98,6 +112,13 @@ export const CandidateResultsPage: React.FC = () => {
                     </td>
                     <td className="px-5 py-4 text-right space-x-2">
                       <button
+                        onClick={() => handleViewAnswers(att._id)}
+                        className="text-xs btn-secondary py-1 px-2.5 inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 border-indigo-500/20"
+                      >
+                        <Award className="w-3.5 h-3.5" />
+                        <span>View Answers</span>
+                      </button>
+                      <button
                         onClick={() => handleSendResultMail(att._id)}
                         disabled={sendingResultMailId === att._id}
                         className="text-xs btn-secondary py-1 px-2.5 inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 border-sky-500/20 hover:border-sky-500/40"
@@ -160,6 +181,61 @@ export const CandidateResultsPage: React.FC = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Submitted Answers Inspector Modal */}
+      {viewingAnswersData && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-panel w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900/50">
+              <div>
+                <h3 className="text-base font-bold text-white">
+                  Candidate Answers: {viewingAnswersData.attempt?.candidateName}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {viewingAnswersData.attempt?.candidateEmail} | Score: {viewingAnswersData.attempt?.percentage}%
+                </p>
+              </div>
+              <button onClick={() => setViewingAnswersData(null)} className="text-slate-400 hover:text-white text-xl px-2">
+                ×
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 overflow-y-auto flex-1 text-xs">
+              {viewingAnswersData.attempt?.frozenQuestions?.map((fq: any, idx: number) => {
+                const ansObj = viewingAnswersData.answers?.find((a: any) => (a.questionId?._id || a.questionId) === fq.questionId);
+                const candidateAnswer = ansObj ? ansObj.answer : 'No answer submitted';
+
+                return (
+                  <div key={fq.questionId} className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-brand-400">
+                        Q{idx + 1}. {fq.section} ({fq.marks} pts)
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-slate-400 uppercase">
+                        {fq.questionType}
+                      </span>
+                    </div>
+                    <p className="text-slate-200 text-sm font-medium">{fq.question}</p>
+
+                    <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+                      <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Candidate Submitted Response:</div>
+                      <div className="font-mono text-slate-200 text-xs whitespace-pre-wrap">
+                        {typeof candidateAnswer === 'object' ? JSON.stringify(candidateAnswer, null, 2) : String(candidateAnswer)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="p-4 border-t border-slate-800 bg-slate-900/50 flex justify-end">
+              <button onClick={() => setViewingAnswersData(null)} className="btn-secondary text-xs">
+                Close
+              </button>
             </div>
           </div>
         </div>
