@@ -95,6 +95,7 @@ function logEmail(entry: Omit<EmailLogEntry, 'id' | 'sentAt'>) {
 async function sendMailViaHttpApi(toEmail: string, subject: string, html: string) {
   const resendKey = process.env.RESEND_API_KEY;
   const sendgridKey = process.env.SENDGRID_API_KEY || (process.env.SMTP_PASS?.startsWith('SG.') ? process.env.SMTP_PASS : undefined);
+  const brevoKey = process.env.BREVO_API_KEY;
 
   if (resendKey) {
     const res = await fetch('https://api.resend.com/emails', {
@@ -139,6 +140,28 @@ async function sendMailViaHttpApi(toEmail: string, subject: string, html: string
     return { success: true, mode: 'SENDGRID_HTTP_API' };
   }
 
+  if (brevoKey) {
+    const fromAddr = process.env.SMTP_USER || 'recruitment@cretivrank.com';
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': brevoKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: 'CretivRank Recruitment', email: fromAddr },
+        to: [{ email: toEmail }],
+        subject,
+        htmlContent: html,
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Brevo HTTP API failed: ${errText}`);
+    }
+    return { success: true, mode: 'BREVO_HTTP_API' };
+  }
+
   return null;
 }
 
@@ -149,6 +172,8 @@ export const emailService = {
       ? 'RESEND_HTTP_API'
       : process.env.SENDGRID_API_KEY || process.env.SMTP_PASS?.startsWith('SG.')
       ? 'SENDGRID_HTTP_API'
+      : process.env.BREVO_API_KEY
+      ? 'BREVO_HTTP_API'
       : mode;
 
     const user = process.env.SMTP_USER || '';
