@@ -52,6 +52,24 @@ export const CandidateResultsPage: React.FC = () => {
     }
   };
 
+  const handleSaveManualGrade = async (questionId: string, score: number, isCorrect: boolean) => {
+    if (!viewingAnswersData?.attempt?._id) return;
+    try {
+      const attemptId = viewingAnswersData.attempt._id;
+      const res = await api.gradeCandidateAnswer(attemptId, { questionId, score, isCorrect });
+      setViewingAnswersData((prev: any) => ({
+        ...prev,
+        attempt: res.attempt,
+        answers: res.answers,
+      }));
+      // Refresh overall candidate results list
+      const updatedRes = await api.getCandidateResults();
+      setAttempts(updatedRes.attempts);
+    } catch (err: any) {
+      alert(err.message || 'Failed to save manual grade.');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -116,7 +134,7 @@ export const CandidateResultsPage: React.FC = () => {
                         className="text-xs btn-secondary py-1 px-2.5 inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 border-indigo-500/20"
                       >
                         <Award className="w-3.5 h-3.5" />
-                        <span>View Answers</span>
+                        <span>View & Grade Answers</span>
                       </button>
                       <button
                         onClick={() => handleSendResultMail(att._id)}
@@ -186,17 +204,17 @@ export const CandidateResultsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Submitted Answers Inspector Modal */}
+      {/* Submitted Answers & Manual Grading Inspector Modal */}
       {viewingAnswersData && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-panel w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+          <div className="glass-panel w-full max-w-3xl max-h-[88vh] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900/50">
               <div>
                 <h3 className="text-base font-bold text-white">
-                  Candidate Answers: {viewingAnswersData.attempt?.candidateName}
+                  Candidate Submitted Answers & Manual Evaluation: {viewingAnswersData.attempt?.candidateName}
                 </h3>
                 <p className="text-xs text-slate-400">
-                  {viewingAnswersData.attempt?.candidateEmail} | Score: {viewingAnswersData.attempt?.percentage}%
+                  {viewingAnswersData.attempt?.candidateEmail} | Score: <strong className="text-emerald-400">{viewingAnswersData.attempt?.score} / {viewingAnswersData.attempt?.maxScore} pts ({viewingAnswersData.attempt?.percentage}%)</strong>
                 </p>
               </div>
               <button onClick={() => setViewingAnswersData(null)} className="text-slate-400 hover:text-white text-xl px-2">
@@ -208,38 +226,137 @@ export const CandidateResultsPage: React.FC = () => {
               {viewingAnswersData.attempt?.frozenQuestions?.map((fq: any, idx: number) => {
                 const ansObj = viewingAnswersData.answers?.find((a: any) => (a.questionId?._id || a.questionId) === fq.questionId);
                 const candidateAnswer = ansObj ? ansObj.answer : 'No answer submitted';
+                const currentScore = ansObj ? ansObj.score || 0 : 0;
+                const currentIsCorrect = ansObj ? !!ansObj.isCorrect : false;
 
                 return (
-                  <div key={fq.questionId} className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-brand-400">
-                        Q{idx + 1}. {fq.section} ({fq.marks} pts)
-                      </span>
-                      <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-slate-400 uppercase">
-                        {fq.questionType}
-                      </span>
-                    </div>
-                    <p className="text-slate-200 text-sm font-medium">{fq.question}</p>
-
-                    <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
-                      <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Candidate Submitted Response:</div>
-                      <div className="font-mono text-slate-200 text-xs whitespace-pre-wrap">
-                        {typeof candidateAnswer === 'object' ? JSON.stringify(candidateAnswer, null, 2) : String(candidateAnswer)}
-                      </div>
-                    </div>
-                  </div>
+                  <ManualAnswerRow
+                    key={fq.questionId}
+                    idx={idx}
+                    fq={fq}
+                    candidateAnswer={candidateAnswer}
+                    currentScore={currentScore}
+                    currentIsCorrect={currentIsCorrect}
+                    onSaveGrade={(newScore, newIsCorrect) => handleSaveManualGrade(fq.questionId, newScore, newIsCorrect)}
+                  />
                 );
               })}
             </div>
 
             <div className="p-4 border-t border-slate-800 bg-slate-900/50 flex justify-end">
               <button onClick={() => setViewingAnswersData(null)} className="btn-secondary text-xs">
-                Close
+                Done & Close
               </button>
             </div>
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+// Sub-component for individual manual answer grading
+const ManualAnswerRow: React.FC<{
+  idx: number;
+  fq: any;
+  candidateAnswer: any;
+  currentScore: number;
+  currentIsCorrect: boolean;
+  onSaveGrade: (score: number, isCorrect: boolean) => void;
+}> = ({ idx, fq, candidateAnswer, currentScore, currentIsCorrect, onSaveGrade }) => {
+  const [scoreVal, setScoreVal] = useState<number>(currentScore);
+  const [isCorrectVal, setIsCorrectVal] = useState<boolean>(currentIsCorrect);
+  const [saving, setSaving] = useState<boolean>(false);
+
+  useEffect(() => {
+    setScoreVal(currentScore);
+    setIsCorrectVal(currentIsCorrect);
+  }, [currentScore, currentIsCorrect]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSaveGrade(scoreVal, isCorrectVal);
+    setSaving(false);
+  };
+
+  return (
+    <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="font-bold text-brand-400">
+          Q{idx + 1}. {fq.section} (Max {fq.marks} pts)
+        </span>
+        <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-slate-400 uppercase">
+          {fq.questionType}
+        </span>
+      </div>
+
+      <p className="text-slate-200 text-sm font-medium">{fq.question}</p>
+
+      {/* Candidate Submitted Response */}
+      <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+        <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Candidate Response:</div>
+        <div className="font-mono text-slate-200 text-xs whitespace-pre-wrap">
+          {typeof candidateAnswer === 'object' ? JSON.stringify(candidateAnswer, null, 2) : String(candidateAnswer)}
+        </div>
+      </div>
+
+      {/* Recruiter Manual Grading & Override Bar */}
+      <div className="p-3 rounded-lg bg-slate-950/60 border border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] font-bold text-slate-400 uppercase">Manual Mark:</span>
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              min={0}
+              max={fq.marks}
+              value={scoreVal}
+              onChange={(e) => {
+                const val = Math.max(0, Math.min(fq.marks, Number(e.target.value) || 0));
+                setScoreVal(val);
+                setIsCorrectVal(val > 0);
+              }}
+              className="w-16 input-field py-1 px-2 text-center text-xs font-mono font-bold text-emerald-400"
+            />
+            <span className="text-xs text-slate-400">/ {fq.marks} pts</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 ml-2">
+            <button
+              type="button"
+              onClick={() => {
+                setIsCorrectVal(true);
+                if (scoreVal === 0) setScoreVal(fq.marks);
+              }}
+              className={`px-2.5 py-1 rounded text-xs font-bold transition-all ${
+                isCorrectVal ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              ✓ Correct
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsCorrectVal(false);
+                setScoreVal(0);
+              }}
+              className={`px-2.5 py-1 rounded text-xs font-bold transition-all ${
+                !isCorrectVal ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              ✕ Incorrect
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="btn-primary py-1 px-3 text-xs"
+        >
+          {saving ? 'Saving...' : 'Save Mark'}
+        </button>
+      </div>
     </div>
   );
 };

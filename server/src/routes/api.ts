@@ -34,7 +34,7 @@ import {
   getCandidateInterviewDetails,
   submitVerificationInterview,
 } from '../controllers/interviewController';
-import { getDashboardSummary, getCandidateResults } from '../controllers/reportController';
+import { getDashboardSummary, getCandidateResults, updateManualAnswerGrade } from '../controllers/reportController';
 import { getAuditLogs } from '../controllers/auditLogController';
 import {
   sendInvitationEmailHandler,
@@ -99,6 +99,7 @@ router.post('/interviews/submit', authenticateAdmin, authorizeRoles('SUPER_ADMIN
 // Analytics & Reports Routes
 router.get('/reports/dashboard', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN'), getDashboardSummary);
 router.get('/reports/candidates', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN', 'INTERVIEWER'), getCandidateResults);
+router.post('/reports/candidates/:attemptId/grade-answer', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN', 'INTERVIEWER'), updateManualAnswerGrade);
 
 // Audit Logs Route
 router.get('/audit-logs', authenticateAdmin, authorizeRoles('SUPER_ADMIN', 'ORG_ADMIN'), getAuditLogs);

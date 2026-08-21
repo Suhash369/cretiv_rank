@@ -82,3 +82,124 @@ export const getCandidateResults = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: 'Failed to retrieve candidate results list.' });
   }
 };
+
+export const updateManualAnswerGrade = async (req: AuthRequest, res: Response) => {
+  try {
+    const { attemptId } = req.params;
+    const { questionId, score, isCorrect } = req.body;
+    const user = req.user;
+
+    const attempt = await AssessmentAttempt.findById(attemptId);
+    if (!attempt) return res.status(404).json({ error: 'Candidate attempt not found.' });
+
+    // Find frozen question to get max marks
+    const fq = attempt.frozenQuestions.find(
+      (q: any) => q.questionId.toString() === questionId.toString()
+    );
+
+    const maxMarks = fq ? fq.marks : 10;
+    const assignedScore = Math.max(0, Math.min(Number(score) || 0, maxMarks));
+    const assignedIsCorrect = typeof isCorrect === 'boolean' ? isCorrect : assignedScore > 0;
+
+    let ansDoc = await Answer.findOne({ attemptId, questionId });
+    if (!ansDoc) {
+      ansDoc = await Answer.create({
+        attemptId: attempt._id,
+        questionId,
+        questionVersion: fq ? fq.questionVersion : 1,
+        answer: 'Manually Reviewed / Evaluated by Recruiter',
+        isCorrect: assignedIsCorrect,
+        score: assignedScore,
+        timeSpent: 0,
+      });
+    } else {
+      ansDoc.isCorrect = assignedIsCorrect;
+      ansDoc.score = assignedScore;
+      await ansDoc.save();
+    }
+
+    // Recalculate candidate overall scores and section breakdown
+    const allAnswers = await Answer.find({ attemptId });
+    const answerMap = new Map<string, any>();
+    allAnswers.forEach((ans) => answerMap.set(ans.questionId.toString(), ans));
+
+    let totalScore = 0;
+    let maxScoreTotal = 0;
+    let totalAnsweredCount = 0;
+    let correctCountTotal = 0;
+
+    const sectionMap = new Map<
+      string,
+      { score: number; maxScore: number; correct: number; incorrect: number; unanswered: number }
+    >();
+
+    for (const item of attempt.frozenQuestions) {
+      const qIdStr = item.questionId.toString();
+      const qMarks = item.marks || 1;
+      maxScoreTotal += qMarks;
+
+      if (!sectionMap.has(item.section)) {
+        sectionMap.set(item.section, { score: 0, maxScore: 0, correct: 0, incorrect: 0, unanswered: 0 });
+      }
+      const secStats = sectionMap.get(item.section)!;
+      secStats.maxScore += qMarks;
+
+      const aDoc = answerMap.get(qIdStr);
+      if (!aDoc || aDoc.answer === null || aDoc.answer === undefined || aDoc.answer === '') {
+        secStats.unanswered++;
+      } else {
+        totalAnsweredCount++;
+        const itemScore = aDoc.score || 0;
+        const itemCorrect = aDoc.isCorrect;
+
+        secStats.score += itemScore;
+        totalScore += itemScore;
+
+        if (itemCorrect) {
+          secStats.correct++;
+          correctCountTotal++;
+        } else {
+          secStats.incorrect++;
+        }
+      }
+    }
+
+    attempt.score = totalScore;
+    attempt.maxScore = maxScoreTotal;
+    attempt.percentage = maxScoreTotal > 0 ? Number(((totalScore / maxScoreTotal) * 100).toFixed(2)) : 0;
+    attempt.accuracy = totalAnsweredCount > 0 ? Number(((correctCountTotal / totalAnsweredCount) * 100).toFixed(2)) : 0;
+
+    attempt.sectionScores = Array.from(sectionMap.entries()).map(([secName, stats]) => ({
+      section: secName,
+      score: stats.score,
+      maxScore: stats.maxScore,
+      correctCount: stats.correct,
+      incorrectCount: stats.incorrect,
+      unansweredCount: stats.unanswered,
+    }));
+
+    await attempt.save();
+
+    await AuditLog.create({
+      organizationId: attempt.organizationId,
+      actorId: user?.id,
+      actorEmail: user?.email,
+      actorRole: user?.role,
+      action: 'MANUAL_GRADE_ANSWER',
+      entity: 'AssessmentAttempt',
+      entityId: (attempt._id as any).toString(),
+      details: { questionId, assignedScore, assignedIsCorrect, newTotalScore: totalScore },
+    });
+
+    const updatedAnswers = await Answer.find({ attemptId });
+
+    return res.json({
+      message: 'Manual answer grade updated successfully.',
+      attempt,
+      answers: updatedAnswers,
+    });
+  } catch (error: any) {
+    console.error('Manual grade error:', error);
+    return res.status(500).json({ error: 'Failed to update manual answer grade.' });
+  }
+};
