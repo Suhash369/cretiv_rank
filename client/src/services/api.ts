@@ -1,4 +1,4 @@
-const BASE_URL = '/api';
+const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const getAuthToken = () => localStorage.getItem('cretivrank_token');
 export const setAuthToken = (token: string) => localStorage.setItem('cretivrank_token', token);
